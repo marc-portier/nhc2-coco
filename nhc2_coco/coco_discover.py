@@ -12,35 +12,30 @@ class CoCoDiscover:
 
     You create CoCoDiscover, passing along a callback an the time you max want to wait.
     By default we wait 3 seconds.
-    
+
     For every result with matching header the callback is called,
     with the address, mac-address and a boolean if it's a NHC2.
     """
 
     def __init__(self, on_discover, on_done):
-        self._get_broadcast_ips()
-
-        self._thread = threading.Thread(target=self._scan_for_nhc)
         self._on_discover = on_discover
         self._on_done = on_done
-        self._thread.start()
         # If we discover one, we don't want to keep looking too long...
         self._discovered_at_least_one = False
+        self._thread = threading.Thread(target=self._scan_for_nhc)
+        self._thread.start()
 
-    def _get_broadcast_ips(self):
-        interfaces = netifaces.interfaces()
-        return filter(lambda x: x,
-                              map(lambda x: netifaces.ifaddresses(x).get(netifaces.AF_INET)[0].get('broadcast') if (
-                                      (netifaces.AF_INET in netifaces.ifaddresses(x))
-                                      and ('broadcast' in netifaces.ifaddresses(x).get(netifaces.AF_INET)[0])
-
-                              ) else None, interfaces))
+    @staticmethod
+    def _get_broadcast_ips():
+        notNone = lambda x: x
+        if2bcast = lambda i: netifaces.ifaddresses(i).get(netifaces.AF_INET, [{}])[0].get('broadcast')
+        return filter(notNone, map(if2bcast, netifaces.interfaces()))
 
     def _scan_for_nhc(self):
         server = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
         server.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
         """ We search for all broadcast ip4s, so that we don't only search the main interface """
-        broadcast_ips = self._get_broadcast_ips()
+        broadcast_ips = CoCoDiscover._get_broadcast_ips()
         for broadcast_ip in broadcast_ips:
             server.sendto(bytes([0x44]), (broadcast_ip, 10000))
         server.setblocking(0)
