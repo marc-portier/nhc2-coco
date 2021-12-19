@@ -8,7 +8,7 @@ loop = asyncio.get_event_loop()
 
 
 def print_u(text):
-    print('\033[4m' + text +'\033[0m')
+    print('\033[4m' + text + '\033[0m')
 
 
 print('Searching for NiKo Home Control Controllers and profiles on them...')

@@ -1,5 +1,6 @@
 import asyncio
 import socket
+import time
 
 from nhc2_coco.coco_discover import CoCoDiscover
 from nhc2_coco.coco_profiles import CoCoProfiles
@@ -59,6 +60,7 @@ class CoCoDiscoverProfiles:
 
     def _done_discovering_profiles_callback(self):
         while len(self._controllers_found) != len(self._profiles_found):
+            # does it make sense to use time.sleep()  (blocking) and not asyncio.sleep()  (non blocking)
             time.sleep(1)
         loop.call_soon_threadsafe(callback=self._done)
 

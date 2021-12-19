@@ -6,7 +6,6 @@ import sys
 import asyncio
 import logging
 import logging.config
-import yaml
 from nhc2_coco.coco_discover_profiles import CoCoDiscoverProfiles
 from nhc2_coco import CoCo
 
@@ -24,7 +23,8 @@ def clout(*msg, em=False):
     :type em: bool
     """
     msg = ' '.join(map(lambda m: str(m), msg))
-    if em: msg = '\033[4m' + msg + '\033[0m'  # add emphasis by underlining the text
+    if em:
+        msg = '\033[4m' + msg + '\033[0m'  # add emphasis by underlining the text
     print(msg)
 
 
@@ -50,7 +50,7 @@ async def do_discover(creds, args: Namespace):
         clout(' %d profile(s) found.' % (len(profiles)))
         for j, profile in enumerate(profiles):
             clout(' Profile #%d:' % j)
-            uuid, name, type = tuple( profile.get(k) for k in ('Uuid','Name','Type'))
+            uuid, name, type = tuple(profile.get(k) for k in ('Uuid', 'Name', 'Type'))
             clout(f'  uuid: {uuid}\n  Name: {name}\n  Type: {type}')
 
 
@@ -61,7 +61,7 @@ async def do_connect(creds, args):
     clout(f"Testing connection to host '{creds.host}'")
 
     coco = CoCo(creds.host, creds.user, creds.pswd, creds.port)
-    coco.connect() # how do you know connection is complete / succesful?
+    coco.connect()   # how do you know connection is complete / succesful?
     coco.disconnect()
 
 
@@ -176,7 +176,7 @@ def credentials(args: Namespace):
 def enable_logging(args: Namespace):
     """Configures logging based on logconf specified through -l argument or .env ${NHC2_LOGCONF}
     """
-    logconf=args.logconf if args.logconf else os.environ.get('NHC2_LOGCONF'),
+    logconf = args.logconf if args.logconf else os.environ.get('NHC2_LOGCONF'),
     if logconf is None or logconf == '':
         return
     import yaml   # conditional dependency -- we only need this (for now) when logconf needs to be read
