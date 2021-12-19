@@ -1,6 +1,4 @@
-nhc2_coco/tests/credentials.py
 nhc2_coco/tests/test.py
-
 
 .idea
 
@@ -127,3 +125,4 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
