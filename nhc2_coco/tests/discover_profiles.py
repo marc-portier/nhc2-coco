@@ -32,4 +32,3 @@ for i, result in enumerate(results):
         print('  uuid: %s' % profile.get('Uuid'))
         print('  Name: %s' % profile.get('Name'))
         print('  Type: %s' % profile.get('Type'))
-

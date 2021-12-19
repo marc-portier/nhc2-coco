@@ -1,18 +1,18 @@
 from nhc2_coco import CoCo
 from nhc2_coco.coco_device_class import CoCoDeviceClass
-from nhc2_coco.tests.credentials import HOST, USER, PASS, PORT
+from credentials_env import HOST, USER, PASS, PORT
 
 """
  Please leave this file intact. Copy/paste it and the credentials_example.py to
  test.py and credentials.py and use those to test stuff.
 """
 print('Connecting and waiting for results...')
+print('credentials:', HOST, PORT, USER, PASS)
 coco = CoCo(HOST, USER, PASS, port=PORT)
 coco.connect()
 
 
 def generics(all):
-    print('generics')
     def light_changed(generic):
         def callback():
             base_state = 'ON' if generic.is_on else 'OFF'

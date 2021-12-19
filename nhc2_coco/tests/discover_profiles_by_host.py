@@ -1,9 +1,10 @@
 import asyncio
 
 from nhc2_coco.coco_discover_profiles import CoCoDiscoverProfiles
+from credentials import HOST
 
 # Enter the IP/Host you want to test here
-host = 'nhc2.local'
+host = HOST
 disc = CoCoDiscoverProfiles(host)
 
 loop = asyncio.get_event_loop()
