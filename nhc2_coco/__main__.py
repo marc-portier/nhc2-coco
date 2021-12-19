@@ -137,7 +137,7 @@ def get_arg_parser():
 
     saps.add_parser(
         'connect',
-        aliases=['c', 'con'],
+        aliases=['c', 'con', 'conn'],
         help='Test the connection to the controller',
     ).set_defaults(func=do_connect)
 
@@ -168,7 +168,7 @@ def credentials(args: Namespace):
     host = args.host if args.host else os.environ.get('NHC2_HOST', DEFAULT_HOST)
     # host == '@' is forcing to look around - use case override:  .env on cli
     host = None if host == '@' else host
-    port = args.port if args.port else os.environ.get('NHC2_PORT', DEFAULT_PORT)
+    port = int(args.port if args.port else os.environ.get('NHC2_PORT', DEFAULT_PORT))
     user = args.user if args.user else os.environ.get('NHC2_USER')
     pswd = args.pswd if args.pswd else os.environ.get('NHC2_PASS')
     return namedtuple("Credentials", ["host", "user", "pswd", "port"])(host, user, pswd, port)
