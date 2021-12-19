@@ -19,8 +19,7 @@ from .coco_generic import CoCoGeneric
 from .const import *
 from .helpers import *
 
-_LOGGER = logging.getLogger(__name__)
-_LOGGER.addHandler(logging.NullHandler())
+_LOGGING = logging.getLogger(__name__)
 
 sem = threading.Semaphore()
 DEVICE_SETS = {
