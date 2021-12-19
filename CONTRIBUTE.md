@@ -43,7 +43,7 @@ This will apply `flake8` with some project preferences to check up on some basic
 
 
 ## run the CLI
-To test-run the [CLI tool](docs/cli) use the locally provided wrapper shell
+To test-run the [CLI tool](docs/cli.md) use the locally provided wrapper shell
 
 ```bash
 $ ./nhc2_coco.sh --help

@@ -36,7 +36,7 @@ light, socket, switched-generic, dimmer
 
 This package comes with a standalone command line tool you can use to inspect your nhc2 configuration.
 
-Read the included `--help`, or the [documentation](docs/cli) to see what it can do.
+Read the included `--help`, or the [documentation](docs/cli.md) to see what it can do.
 
 ``` bash
 $ nhc2_coco --help       # if you have the py module properly installed this script should be in your path
@@ -56,4 +56,4 @@ The behaviour of the tool is controlled by two additional files:
  * Contribute to this project with constructive issues, suggestions, PRs, etc.
  * Help me in any way to get support for more entities (eg heating)
 
-Contributors might want to check up on this [guide](CONTRIBUTE)
+Contributors might want to check up on this [guide](CONTRIBUTE.md)
