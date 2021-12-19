@@ -176,7 +176,7 @@ def credentials(args: Namespace):
 def enable_logging(args: Namespace):
     """Configures logging based on logconf specified through -l argument or .env ${NHC2_LOGCONF}
     """
-    logconf = args.logconf if args.logconf else os.environ.get('NHC2_LOGCONF'),
+    logconf = args.logconf if args.logconf else os.environ.get('NHC2_LOGCONF')
     if logconf is None or logconf == '':
         return
     import yaml   # conditional dependency -- we only need this (for now) when logconf needs to be read
