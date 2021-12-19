@@ -36,7 +36,7 @@ async def do_discover(creds, args: Namespace):
     if creds.host is None:
         clout('Searching for NiKo Home Control Controllers and profiles on them...')
     else:
-        clout('Searching for NiKo Home Control Profiles on host [%s]' % creds.host)
+        clout('Listing Profiles on host [%s] use `--host @` to ignore the .env host and perform broadcast-discovery.' % creds.host)
 
     disc = CoCoDiscoverProfiles(creds.host)
     results = await disc.get_all_profiles()
@@ -165,12 +165,13 @@ def get_arg_parser():
 def credentials(args: Namespace):
     """Returns a simple structure holding the to be applied credentials merged from CLI args and .env
     """
-    return namedtuple("Credentials", ["host", "user", "pswd", "port"])(
-        host=args.host if args.host else os.environ.get('NHC2_HOST', DEFAULT_HOST),
-        port=args.port if args.port else os.environ.get('NHC2_PORT', DEFAULT_PORT),
-        user=args.user if args.user else os.environ.get('NHC2_USER'),
-        pswd=args.pswd if args.pswd else os.environ.get('NHC2_PASS'),
-    )
+    host = args.host if args.host else os.environ.get('NHC2_HOST', DEFAULT_HOST)
+    # host == '@' is forcing to look around - use case override:  .env on cli
+    host = None if host == '@' else host
+    port = args.port if args.port else os.environ.get('NHC2_PORT', DEFAULT_PORT)
+    user = args.user if args.user else os.environ.get('NHC2_USER')
+    pswd = args.pswd if args.pswd else os.environ.get('NHC2_PASS')
+    return namedtuple("Credentials", ["host", "user", "pswd", "port"])(host, user, pswd, port)
 
 
 def enable_logging(args: Namespace):
