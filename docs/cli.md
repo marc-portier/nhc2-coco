@@ -4,7 +4,7 @@ This document tries to capture and explain what you can do with the provided CLI
 
 ## Read the cli help
 
-run `./nhc2.sh --help` to retrieve:
+run `nhc2_coco --help` to retrieve:
 ```
 usage: nhc2_coco [-h] [-l <path to logconf file in yml format>] [-H HOST] [-p PORT] [-U USERNAME] [-P PASSWORD] action ...
 
@@ -33,7 +33,13 @@ actions to perform:
 
 ## Discover nhc2 hosts and profiles on your network
 
-todo
+The `discover` action allows to
+* find Niko Home Controller hosts on your network using broadcasts
+* list profiles found on top of them
+
+```bash
+$ nhc2_coco discover
+```
 
 ## Connect (test credentials) to your nhc2 host
 
