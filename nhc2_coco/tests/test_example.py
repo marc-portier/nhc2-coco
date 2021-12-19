@@ -1,6 +1,6 @@
 from nhc2_coco import CoCo
 from nhc2_coco.coco_device_class import CoCoDeviceClass
-from credentials_env import HOST, USER, PASS, PORT
+from credentials import HOST, USER, PASS, PORT
 
 """
  Please leave this file intact. Copy/paste it and the credentials_example.py to
