@@ -34,15 +34,16 @@ class CoCoDiscover:
     def _scan_for_nhc(self):
         server = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
         server.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-        """ We search for all broadcast ip4s, so that we don't only search the main interface """
+        # We search for all broadcast ip4s, so that we don't only search the main interface
         broadcast_ips = CoCoDiscover._get_broadcast_ips()
         for broadcast_ip in broadcast_ips:
             server.sendto(bytes([0x44]), (broadcast_ip, 10000))
         server.setblocking(0)
         loops = 0
 
+        # min 20 max 200 tries to discover at least one
         while loops < 200 and ((not self._discovered_at_least_one) or loops < 20):
-            loops = loops + 1
+            loops += 1
             ready = select.select([server], [], [], 0.01)
             if ready[0]:
                 data, addr = server.recvfrom(4096)

@@ -4,13 +4,18 @@ import socket
 from nhc2_coco.coco_discover import CoCoDiscover
 from nhc2_coco.coco_profiles import CoCoProfiles
 
+# why is this a global variable?
+# what could be the effect on multiple (simultanuous working) instances of CoCoDiscoverProfiles
 loop = asyncio.get_event_loop()
 
 
+# warning -- class name is not a noun, but a verb ??
 class CoCoDiscoverProfiles:
-    """CoCoDiscover will help you discover NHC2 Profiles on all devices on the network. It will NOT find hobby
-    profiles. The username then is provided by Niko (eg. hobby) This relies on not publicly documented API calls! It
-    also broadcasts a UDP packet on all available (ipV4) broadcast addresses.
+    """CoCoDiscover will help you discover NHC2 Profiles on all devices on the network.
+    It will NOT find hobby profiles.
+    The username then is provided by Niko (eg. hobby)
+    This relies on not publicly documented API calls!
+    It also broadcasts a UDP packet on all available (ipV4) broadcast addresses.
     """
 
     def __init__(self, host=None):
@@ -20,7 +25,7 @@ class CoCoDiscoverProfiles:
         if host is None:
             CoCoDiscover(self._discover_controllers_callback, self._done_discovering_controllers_callback)
         else:
-            """If a host is provided, we only search for profiles."""
+            # If a host is provided, we only search for profiles.
             self._search_for_one_host(host)
 
     def _done(self):
@@ -35,13 +40,12 @@ class CoCoDiscoverProfiles:
 
     def _discover_profiles_callback(self, address, mac, skip_host_search=False):
         def inner_function(profiles):
-            if skip_host_search is not True:
-                try:
+            host = None
+            try:
+                if not skip_host_search:
                     host = socket.gethostbyaddr(address)[0]
-                except:
-                    host = None
-            else:
-                host = None
+            finally:
+                pass
             self._profiles_found.append((address, mac, profiles, host))
 
         return inner_function

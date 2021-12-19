@@ -20,6 +20,8 @@ from .const import *
 from .helpers import *
 
 _LOGGER = logging.getLogger(__name__)
+_LOGGER.addHandler(logging.NullHandler())
+
 sem = threading.Semaphore()
 DEVICE_SETS = {
     CoCoDeviceClass.SWITCHED_FANS: {INTERNAL_KEY_CLASS: CoCoSwitchedFan, INTERNAL_KEY_MODELS: LIST_VALID_SWITCHED_FANS},
@@ -35,6 +37,7 @@ DEVICE_SETS = {
 class CoCo:
     def __init__(self, address, username, password, port=8883, ca_path=None, switches_as_lights=False):
 
+        _LOGGING.info(f"initializing Coco({address}, {username}, {password[:3]}..., {port}")
         if switches_as_lights:
             DEVICE_SETS[CoCoDeviceClass.LIGHTS] = {INTERNAL_KEY_CLASS: CoCoLight,
                                                    INTERNAL_KEY_MODELS: LIST_VALID_LIGHTS + LIST_VALID_SWITCHES}
@@ -71,6 +74,7 @@ class CoCo:
 
     def connect(self):
 
+        _LOGGING.info(f"connecting ({str(self)})")
         def _on_message(client, userdata, message):
             topic = message.topic
             response = json.loads(message.payload)
