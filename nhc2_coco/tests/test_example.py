@@ -7,7 +7,7 @@ import os
 import yaml
 import logging
 import logging.config
-_LOGGING = logging.getLogger(__name__)
+_LOGGER = logging.getLogger(__name__)
 
 def enable_logging():
     logconf = os.environ.get('NHC2_LOGCONF')
@@ -16,7 +16,7 @@ def enable_logging():
     # else
     with open(logconf, 'r') as yml_logconf:
         logging.config.dictConfig(yaml.load(yml_logconf, Loader=yaml.SafeLoader))
-    _LOGGING.info(f"Logging enabled according to config in {logconf}")
+    _LOGGER.info(f"Logging enabled according to config in {logconf}")
 
 enable_logging()
 

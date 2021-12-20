@@ -19,7 +19,7 @@ from .coco_generic import CoCoGeneric
 from .const import *
 from .helpers import *
 
-_LOGGING = logging.getLogger(__name__)
+_LOGGER = logging.getLogger(__name__)
 
 # warning one semaphore globally - in contrast to separate threads per CoCo instance ?
 sem = threading.Semaphore()
@@ -37,7 +37,7 @@ DEVICE_SETS = {
 class CoCo:
     def __init__(self, address, username, password, port=8883, ca_path=None, switches_as_lights=False):
 
-        _LOGGING.info(f"initializing Coco({address}, {username}, {password[:3]}...{password[-2:]}, {port}")
+        _LOGGER.info(f"initializing Coco({address}, {username}, {password[:3]}...{password[-2:]}, {port}")
         # warning -- local instance variable with an effect on a global variable !!!
         if switches_as_lights:
             DEVICE_SETS[CoCoDeviceClass.LIGHTS] = {INTERNAL_KEY_CLASS: CoCoLight,
@@ -55,13 +55,13 @@ class CoCo:
         if ca_path is None:
             ca_path = os.path.dirname(os.path.realpath(__file__)) + MQTT_CERT_FILE
         client = mqtt.Client(protocol=MQTT_PROTOCOL, transport=MQTT_TRANSPORT)
-        _LOGGING.debug(f"mqtt client ok")
+        _LOGGER.debug(f"mqtt client ok")
         client.username_pw_set(username, password)
-        _LOGGING.debug(f"setting user:pass {username}:{password[:3]}...{password[-2:]}")
+        _LOGGER.debug(f"setting user:pass {username}:{password[:3]}...{password[-2:]}")
         client.tls_set(ca_path)
-        _LOGGING.debug(f"using ca path == {ca_path} to set up client")
+        _LOGGER.debug(f"using ca path == {ca_path} to set up client")
         client.tls_insecure_set(True)
-        _LOGGING.debug(f"MQTT client ready")
+        _LOGGER.debug(f"MQTT client ready")
         self._client = client
         self._address = address
         self._port = port
@@ -72,18 +72,18 @@ class CoCo:
         self._devices_callback = {}
         self._system_info = None
         self._system_info_callback = lambda x: None
-        _LOGGING.debug(f"Done initializing Coco")
+        _LOGGER.debug(f"Done initializing Coco")
 
     def __del__(self):
         self._keep_thread_running = False
         self._client.disconnect()
 
     def connect(self):
-        _LOGGING.info(f"connecting ({str(self)})")
+        _LOGGER.info(f"connecting ({str(self)})")
         def _on_message(client, userdata, message):
             topic = message.topic
             response = json.loads(message.payload)
-            _LOGGING.info(f"received message ({topic} - {response})")
+            _LOGGER.info(f"received message ({topic} - {response})")
 
             if topic == self._profile_creation_id + MQTT_TOPIC_PUBLIC_RSP and \
                     response[KEY_METHOD] == MQTT_METHOD_SYSINFO_PUBLISH:
@@ -143,7 +143,7 @@ class CoCo:
 
         self._client.connect_async(self._address, self._port)
         self._client.loop_start()
-        _LOGGING.debug(f"Coco connect async called and loop started.")
+        _LOGGER.debug(f"Coco connect async called and loop started.")
 
     def disconnect(self):
         self._client.loop_stop()
