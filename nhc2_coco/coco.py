@@ -128,6 +128,7 @@ class CoCo:
                                json.dumps({KEY_METHOD: MQTT_METHOD_DEVICES_LIST}), 1)
             elif MQTT_RC_CODES[rc]:
                 _LOGGER.error(f'Connection Failed - response-code={MQTT_RC_CODES[rc]}')
+                # refactoring::warning --> this does not stop the thread, wrong credentials keep being tried to send messages!
                 raise Exception(MQTT_RC_CODES[rc])
             else:
                 _LOGGER.error(f'Connection Failes with unkown error')
