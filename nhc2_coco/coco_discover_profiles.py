@@ -42,11 +42,11 @@ class CoCoDiscoverProfiles:
     def _discover_profiles_callback(self, address, mac, skip_host_search=False):
         def inner_function(profiles):
             host = None
-            try:
-                if not skip_host_search:
+            if not skip_host_search:
+                try:
                     host = socket.gethostbyaddr(address)[0]
-            finally:
-                pass
+                finally:
+                    pass
             self._profiles_found.append((address, mac, profiles, host))
 
         return inner_function

@@ -10,13 +10,13 @@ from nhc2_coco.coco_discover_profiles import CoCoDiscoverProfiles
 from nhc2_coco import CoCo
 
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGING = logging.getLogger(__name__)
 DEFAULT_HOST = 'nhc2.local'
 DEFAULT_PORT = 8883
 
 
 def clout(*msg, em=False):
-    """Output actually intended as command-line response output. All other statements should use _LOGGER
+    """Output actually intended as command-line response output. All other statements should use _LOGGING
     :param *msg: message to output
     :type *msg: str or tuple thereof
     :param em: add emphasis (underline) to the message
@@ -55,7 +55,7 @@ async def do_discover(creds, args: Namespace):
 
 
 async def do_connect(creds, args):
-    _LOGGER.info("TODO -- complete implementation of connection test")
+    _LOGGING.info("TODO -- complete implementation of connection test")
 
     assert creds.host is not None, "Connection test requires a host to connect to."
     clout(f"Testing connection to host '{creds.host}'")
@@ -66,18 +66,18 @@ async def do_connect(creds, args):
 
 
 async def do_list(creds, args):
-    _LOGGER.info("TODO -- implement listing all found elements")
+    _LOGGING.info("TODO -- implement listing all found elements")
     # todo allow specify TYPE of elements to list
 
 
 async def do_watch(creds, args):
-    _LOGGER.info("TODO -- implement watch mode reporting on all events")
+    _LOGGING.info("TODO -- implement watch mode reporting on all events")
     # todo allow specify TYPE of elements to list
     # listen for input keys --> disconnect on any key
 
 
 async def do_shell(creds, args):
-    _LOGGER.info("TODO -- implement an interactive shell to capture commands and 'talk' to the controller")
+    _LOGGING.info("TODO -- implement an interactive shell to capture commands and 'talk' to the controller")
     # need to consider some command syntax ? construct a language and use some parser-generator ?
     # might be useful in a separate project?
 
@@ -180,10 +180,11 @@ def enable_logging(args: Namespace):
     logconf = args.logconf if args.logconf else os.environ.get('NHC2_LOGCONF')
     if logconf is None or logconf == '':
         return
+    # else
     import yaml   # conditional dependency -- we only need this (for now) when logconf needs to be read
     with open(logconf, 'r') as yml_logconf:
         logging.config.dictConfig(yaml.load(yml_logconf, Loader=yaml.SafeLoader))
-    _LOGGER.info(f"Logging enabled according to config in {logconf}")
+    _LOGGING.info(f"Logging enabled according to config in {logconf}")
 
 
 def main():
@@ -195,7 +196,7 @@ def main():
     args = ap.parse_args()     # interprete cli args
     enable_logging(args)       # merge args and .env to enable logging
     creds = credentials(args)  # merge args and .env to get credentials
-    _LOGGER.info(f"credentials => {str(creds)}")
+    _LOGGING.info(f"credentials => {str(creds)}")
 
     # setup async wait construct for main routines
     loop = asyncio.get_event_loop()
@@ -203,7 +204,7 @@ def main():
         # trigger the actual called action-function (async) and wait for it
         loop.run_until_complete(args.func(creds, args))
     except Exception as e:
-        _LOGGER.exception(e)
+        _LOGGING.exception(e)
         clout("***Error***", str(e))
         ap.print_help()
         exitcode = 1

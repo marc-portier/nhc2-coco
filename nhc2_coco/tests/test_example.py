@@ -2,12 +2,30 @@ from nhc2_coco import CoCo
 from nhc2_coco.coco_device_class import CoCoDeviceClass
 from credentials import HOST, USER, PASS, PORT
 
+
+import os
+import yaml
+import logging
+import logging.config
+_LOGGING = logging.getLogger(__name__)
+
+def enable_logging():
+    logconf = os.environ.get('NHC2_LOGCONF')
+    if logconf is None or logconf == '':
+        return
+    # else
+    with open(logconf, 'r') as yml_logconf:
+        logging.config.dictConfig(yaml.load(yml_logconf, Loader=yaml.SafeLoader))
+    _LOGGING.info(f"Logging enabled according to config in {logconf}")
+
+enable_logging()
+
 """
  Please leave this file intact. Copy/paste it and the credentials_example.py to
  test.py and credentials.py and use those to test stuff.
 """
 print('Connecting and waiting for results...')
-print('credentials:', HOST, PORT, USER, PASS)
+print('credentials:', HOST, PORT, USER, PASS[:3] + "..." + PASS[-2:])
 coco = CoCo(HOST, USER, PASS, port=PORT)
 coco.connect()
 
