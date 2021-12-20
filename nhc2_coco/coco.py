@@ -78,8 +78,7 @@ class CoCo:
         _LOGGER.debug(f"Done initializing Coco")
 
     def __del__(self):
-        self._keep_thread_running = False
-        self._client.disconnect()
+        self.disconnect()
 
     def connect(self):
         _LOGGER.info(f"connecting ({str(self)})")
@@ -135,7 +134,7 @@ class CoCo:
                 raise Exception('Unknown error')
 
         def _on_disconnect(client, userdata, rc):
-            _LOGGER.warning('Disconnected')
+            _LOGGER.info('Disconnected')
             for uuid, device_callback in self._device_callbacks.items():
                 offline = {'Online': 'False', KEY_UUID: uuid}
                 device_callback[INTERNAL_KEY_CALLBACK](offline)
@@ -145,10 +144,14 @@ class CoCo:
         self._client.on_disconnect = _on_disconnect
 
         self._client.connect_async(self._address, self._port)
+        # refactoring::added -- since disconnect now stops we need this if we disconnect-reconnect in one session
+        self._keep_thread_running = True
         self._client.loop_start()
         _LOGGER.debug(f"Coco connect async called and loop started.")
 
     def disconnect(self):
+        # refactoring::added -- thread not really stopped if flag remains True
+        self._keep_thread_running = False
         self._client.loop_stop()
         self._client.disconnect()
 
