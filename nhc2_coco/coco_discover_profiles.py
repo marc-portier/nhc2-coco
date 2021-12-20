@@ -5,12 +5,12 @@ import time
 from nhc2_coco.coco_discover import CoCoDiscover
 from nhc2_coco.coco_profiles import CoCoProfiles
 
-# why is this a global variable?
+# refactoring::warning - why is this a global variable?
 # what could be the effect on multiple (simultanuous working) instances of CoCoDiscoverProfiles
 loop = asyncio.get_event_loop()
 
 
-# warning -- class name is not a noun, but a verb ??
+# refactoring::warning -- class name is not a noun, but a verb ?? CoCoProfileDiscovery would be better ?
 class CoCoDiscoverProfiles:
     """CoCoDiscover will help you discover NHC2 Profiles on all devices on the network.
     It will NOT find hobby profiles.

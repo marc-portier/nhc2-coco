@@ -21,7 +21,7 @@ from .helpers import *
 
 _LOGGER = logging.getLogger(__name__)
 
-# warning one semaphore globally - in contrast to separate threads per CoCo instance ?
+# refactoring::warning one semaphore globally - in contrast to separate threads per CoCo instance ?
 sem = threading.Semaphore()
 DEVICE_SETS = {
     CoCoDeviceClass.SWITCHED_FANS: {INTERNAL_KEY_CLASS: CoCoSwitchedFan, INTERNAL_KEY_MODELS: LIST_VALID_SWITCHED_FANS},
@@ -38,7 +38,7 @@ class CoCo:
     def __init__(self, address, username, password, port=8883, ca_path=None, switches_as_lights=False):
 
         _LOGGER.info(f"initializing Coco({address}, {username}, {password[:3]}...{password[-2:]}, {port}")
-        # warning -- local instance variable with an effect on a global variable !!!
+        # refactoring::warning -- local instance variable with an effect on a global variable !!! (considered harmfull)
         if switches_as_lights:
             DEVICE_SETS[CoCoDeviceClass.LIGHTS] = {INTERNAL_KEY_CLASS: CoCoLight,
                                                    INTERNAL_KEY_MODELS: LIST_VALID_LIGHTS + LIST_VALID_SWITCHES}
@@ -72,6 +72,9 @@ class CoCo:
         self._devices_callback = {}
         self._system_info = None
         self._system_info_callback = lambda x: None
+        # refactoring::suggestion -- the various callback routines sound like either
+        #   * some pub/sub event framework could be used  - like https://pypi.org/project/circuits/
+        #   * or some Observer could be considered - like https://refactoring.guru/design-patterns/observer/python/example
         _LOGGER.debug(f"Done initializing Coco")
 
     def __del__(self):
@@ -83,7 +86,7 @@ class CoCo:
         def _on_message(client, userdata, message):
             topic = message.topic
             response = json.loads(message.payload)
-            _LOGGER.info(f"received message ({topic} - {response})")
+            _LOGGER.debug(f"received message ({topic} - {response})")
 
             if topic == self._profile_creation_id + MQTT_TOPIC_PUBLIC_RSP and \
                     response[KEY_METHOD] == MQTT_METHOD_SYSINFO_PUBLISH:
