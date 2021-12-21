@@ -4,6 +4,7 @@ from collections import namedtuple
 import os
 import sys
 import asyncio
+import json
 import logging
 import logging.config
 from nhc2_coco.coco_discover_profiles import CoCoDiscoverProfiles
@@ -55,14 +56,29 @@ async def do_discover(creds, args: Namespace):
 
 
 async def do_connect(creds, args):
-    _LOGGER.info("TODO -- complete implementation of connection test")
-
     assert creds.host is not None, "Connection test requires a host to connect to."
     clout(f"Testing connection to host '{creds.host}'")
 
     coco = CoCo(creds.host, creds.user, creds.pswd, creds.port)
-    coco.connect()   # how do you know connection is complete / succesful?
-    coco.disconnect()
+
+    # on succes sys info will be available - so handle that
+    def sysinfo_handler(info):
+        clout(f"Sysinfo retrieved (connection succesful)", em=True)
+        coco.disconnect()
+        clout(json.dumps(info, indent=4))
+        clout(f"Disconnect succesful too.")
+    # on error - we know connection failed
+    def error_handler(error):
+        (reason, code, mqtt_msg) = error
+        clout(f"***ERROR***: {reason} - [{code}] = {mqtt_msg}")
+        coco.disconnect()  # close the coco-thread
+
+    # register event-handlers
+    coco.get_systeminfo(sysinfo_handler)
+    coco.on_error(error_handler)
+
+    # try and connect
+    coco.connect()
 
 
 async def do_list(creds, args):
@@ -171,7 +187,8 @@ def credentials(args: Namespace):
     port = int(args.port if args.port else os.environ.get('NHC2_PORT', DEFAULT_PORT))
     user = args.user if args.user else os.environ.get('NHC2_USER')
     pswd = args.pswd if args.pswd else os.environ.get('NHC2_PASS')
-    return namedtuple("Credentials", ["host", "user", "pswd", "port"])(host, user, pswd, port)
+    pwsc = pswd[:3] + ".." + pswd[-2:]
+    return namedtuple("Credentials", ["host", "port", "user", "pswd", "pwsc"])(host, port, user, pswd, pwsc)
 
 
 def enable_logging(args: Namespace):
@@ -196,7 +213,7 @@ def main():
     args = ap.parse_args()     # interprete cli args
     enable_logging(args)       # merge args and .env to enable logging
     creds = credentials(args)  # merge args and .env to get credentials
-    _LOGGER.info(f"credentials => {str(creds)}")
+    _LOGGER.info(f"credentials => host={creds.host}, port={creds.port}, user={creds.user}, pswd={creds.pwsc}")
 
     # setup async wait construct for main routines
     loop = asyncio.get_event_loop()

@@ -43,7 +43,13 @@ $ nhc2_coco discover
 
 ## Connect (test credentials) to your nhc2 host
 
-todo
+The `connect` action allows to
+* make a connection, and thus test out the authentication
+* inspect the system-information provided by the nhc2 host
+
+```bash
+$ nhc2_coco connect
+```
 
 ## List elements on your nhc2 host in a comprehensive reporting
 
