@@ -35,10 +35,13 @@ DEVICE_SETS = {
 
 
 class CoCo:
+
+    # refactoring::question - should check difference with this port 8883 - only testing 8884 for now
     def __init__(self, address, username, password, port=8883, ca_path=None, switches_as_lights=False):
 
         _LOGGER.info(f"initializing Coco({address}, {username}, {password[:3]}...{password[-2:]}, {port}")
-        # refactoring::warning -- local instance variable with an effect on a global variable !!! (considered harmfull)
+        # refactoring::warning -- local constructor argument (switches_as_lights) with an effect on a global variable (DEVICE_SETS)!!!
+        #      (considered harmfull)
         if switches_as_lights:
             DEVICE_SETS[CoCoDeviceClass.LIGHTS] = {INTERNAL_KEY_CLASS: CoCoLight,
                                                    INTERNAL_KEY_MODELS: LIST_VALID_LIGHTS + LIST_VALID_SWITCHES}
@@ -174,6 +177,7 @@ class CoCo:
         if self._system_info:
             self._system_info_callback(self._system_info)
 
+    # refactoring::suggestion - this only registers one callback per device-class - an event fw should do better ?
     def get_devices(self, device_class: CoCoDeviceClass, callback: Callable):
         self._devices_callback[device_class] = callback
         if self._devices and device_class in self._devices:
@@ -187,7 +191,7 @@ class CoCo:
             finally:  # protect propagation from exceptions in handlers
                 pass
 
-    # refactoring::suggetsion -- when adopting event framework - we should allow for un-listening too
+    # refactoring::suggestion -- when adopting event framework - we should allow for un-listening too
     # refactoring::addition -- allow users to know about errors
     def on_error(self, ehfn):
         assert callable(ehfn) , "argument to on_error must be callable"
