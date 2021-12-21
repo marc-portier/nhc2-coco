@@ -72,6 +72,8 @@ class CoCo:
         self._devices_callback = {}
         self._system_info = None
         self._system_info_callback = lambda x: None
+        # refactoring::addition -- alow users to know about errors
+        self._error_handlers = []
         # refactoring::suggestion -- the various callback routines sound like either
         #   * some pub/sub event framework could be used  - like https://pypi.org/project/circuits/
         #   * or some Observer could be considered - like https://refactoring.guru/design-patterns/observer/python/example
@@ -87,6 +89,9 @@ class CoCo:
             response = json.loads(message.payload)
             _LOGGER.debug(f"received message ({topic} - {response})")
 
+            # refactoring::suggestion -- better handle these elif dispatch cases through polymorfism + keyed handlers
+            #     (i.e. first translate topic into key, would also help readability)
+            # refactoring::warning -- code consistency -- using client versus self._client below
             if topic == self._profile_creation_id + MQTT_TOPIC_PUBLIC_RSP and \
                     response[KEY_METHOD] == MQTT_METHOD_SYSINFO_PUBLISH:
                 self._system_info = response
@@ -94,6 +99,7 @@ class CoCo:
 
             elif topic == (self._profile_creation_id + MQTT_TOPIC_SUFFIX_RSP) and \
                     response[KEY_METHOD] == MQTT_METHOD_DEVICES_LIST:
+                # refactoring::question why unsubscribe here?  better at event handling layer on top?
                 self._client.unsubscribe(self._profile_creation_id + MQTT_TOPIC_SUFFIX_RSP)
                 self._process_devices_list(response)
 
@@ -127,11 +133,18 @@ class CoCo:
                 client.publish(self._profile_creation_id + MQTT_TOPIC_SUFFIX_CMD,
                                json.dumps({KEY_METHOD: MQTT_METHOD_DEVICES_LIST}), 1)
             elif MQTT_RC_CODES[rc]:
-                _LOGGER.error(f'Connection Failed - response-code={MQTT_RC_CODES[rc]}')
+                # refactoring::addition make sure user can learn about connection failures
+                self.notify_error(("Connection Failed", rc, MQTT_RC_CODES[rc]))
+                _LOGGER.error(f'Connection Failed - response .code={rc} .msg={MQTT_RC_CODES[rc]}')
                 # refactoring::warning --> this does not stop the thread, wrong credentials keep being tried to send messages!
+                #     also : this excpetion is ending up in the mqtt thread, not the coco thread
                 raise Exception(MQTT_RC_CODES[rc])
             else:
-                _LOGGER.error(f'Connection Failes with unkown error')
+                # refactoring::addition make sure user can learn about connection failures
+                self.notify_error(("Connection Failed", rc, None))
+                _LOGGER.error(f'Connection Failed with unkown error - response .code={rc}')
+                # refactoring::warning --> this does not stop the thread, wrong credentials keep being tried to send messages!
+                #     also : this excpetion is ending up in the mqtt thread, not the coco thread
                 raise Exception('Unknown error')
 
         def _on_disconnect(client, userdata, rc):
@@ -145,13 +158,13 @@ class CoCo:
         self._client.on_disconnect = _on_disconnect
 
         self._client.connect_async(self._address, self._port)
-        # refactoring::added -- since disconnect now stops we need this if we disconnect-reconnect in one session
+        # refactoring::addition -- since disconnect now stops we need this if we disconnect-reconnect in one session
         self._keep_thread_running = True
         self._client.loop_start()
         _LOGGER.debug(f"Coco connect async called and loop started.")
 
     def disconnect(self):
-        # refactoring::added -- thread not really stopped if flag remains True
+        # refactoring::addition -- thread not really stopped if flag remains True
         self._keep_thread_running = False
         self._client.loop_stop()
         self._client.disconnect()
@@ -165,6 +178,20 @@ class CoCo:
         self._devices_callback[device_class] = callback
         if self._devices and device_class in self._devices:
             self._devices_callback[device_class](self._devices[device_class])
+
+    # refactoring::addition -- allow users to know about errors
+    def notify_error(self, err):
+        for ehfn in self._error_handlers:
+            try:
+                ehfn(err)
+            finally:  # protect propagation from exceptions in handlers
+                pass
+
+    # refactoring::suggetsion -- when adopting event framework - we should allow for un-listening too
+    # refactoring::addition -- allow users to know about errors
+    def on_error(self, ehfn):
+        assert callable(ehfn) , "argument to on_error must be callable"
+        self._error_handlers.append(ehfn)
 
     def _publish_device_control_commands(self):
         while self._keep_thread_running:
