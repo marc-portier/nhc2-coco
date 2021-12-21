@@ -8,12 +8,15 @@ import json
 import logging
 import logging.config
 from nhc2_coco.coco_discover_profiles import CoCoDiscoverProfiles
+from nhc2_coco.coco_device_class import CoCoDeviceClass
 from nhc2_coco import CoCo
 
 
 _LOGGER = logging.getLogger(__name__)
 DEFAULT_HOST = 'nhc2.local'
 DEFAULT_PORT = 8883
+DEVICE_TYPES = {CoCoDeviceClass.GENERIC, CoCoDeviceClass.SWITCHES, CoCoDeviceClass.LIGHTS, CoCoDeviceClass.SHUTTERS}
+DEVICE_TYPENAMES = {cdc.value for cdc in DEVICE_TYPES}
 
 
 def clout(*msg, em=False):
@@ -55,8 +58,12 @@ async def do_discover(creds, args: Namespace):
             clout(f'  uuid: {uuid}\n  Name: {name}\n  Type: {type}')
 
 
-async def do_connect(creds, args):
+def assertConnectionSettings (creds):
     assert creds.host is not None, "Connection test requires a host to connect to."
+    assert creds.port is not None and creds.port != 0 , "Connection test requires a port to connect to."
+
+async def do_connect(creds, args):
+    assertConnectionSettings(creds)
     clout(f"Testing connection to host '{creds.host}'")
 
     coco = CoCo(creds.host, creds.user, creds.pswd, creds.port)
@@ -64,10 +71,9 @@ async def do_connect(creds, args):
     # on succes sys info will be available - so handle that
     def sysinfo_handler(info):
         clout(f"Sysinfo retrieved (connection succesful)", em=True)
-        coco.disconnect()
         clout(json.dumps(info, indent=4))
-        clout(f"Disconnect succesful too.")
-    # on error - we know connection failed
+        coco.disconnect()
+    # on error - we assume the connection failed
     def error_handler(error):
         (reason, code, mqtt_msg) = error
         clout(f"***ERROR***: {reason} - [{code}] = {mqtt_msg}")
@@ -76,14 +82,56 @@ async def do_connect(creds, args):
     # register event-handlers
     coco.get_systeminfo(sysinfo_handler)
     coco.on_error(error_handler)
+    # todo - we should register a catch-all timeout-thread to avoid 'keep waiting' if neither error or sysinfo comes in?
 
     # try and connect
     coco.connect()
 
 
 async def do_list(creds, args):
-    _LOGGER.info("TODO -- implement listing all found elements")
+    assertConnectionSettings(creds)
+    clout(f"Listing devices known to host '{creds.host}'")
     # todo allow specify TYPE of elements to list
+    type_names = DEVICE_TYPENAMES
+    type_name = args.device_type
+    if type_name is not None:
+        type_name = type_name.lower()
+        assert type_name in DEVICE_TYPENAMES, f"requested type {type_name} must be one of {DEVICE_TYPENAMES}"
+        type_names = {type_name}
+
+    def done(cdc):
+        # remove name from type_names
+        type_names.remove(cdc.value)
+        # disconnect if none left
+        if len(type_names) == 0:
+            coco.disconnect()
+    def generics_handler(all):
+        clout("todo generics handler", all)
+        done(CoCoDeviceClass.GENERIC)
+    def shutter_handler(all):
+        clout("todo shutter handler", all)
+        done(CoCoDeviceClass.SHUTTERS)
+    def switch_handler(all):
+        clout("todo switch handler", all)
+        done(CoCoDeviceClass.SWITCHES)
+    def light_handler(all):
+        clout("todo light handler", all)
+        done(CoCoDeviceClass.LIGHTS)
+    class_handler = {
+        CoCoDeviceClass.GENERIC: generics_handler,
+        CoCoDeviceClass.SHUTTERS: shutter_handler,
+        CoCoDeviceClass.SWITCHES: switch_handler,
+        CoCoDeviceClass.LIGHTS: light_handler,
+    }
+
+    coco = CoCo(creds.host, creds.user, creds.pswd, creds.port)
+    coco.connect()
+    for name in type_names:
+        cdc = CoCoDeviceClass(name)
+        handler = class_handler[cdc]
+        coco.get_devices(cdc, handler)
+
+    _LOGGER.info("TODO -- implement listing all found elements")
 
 
 async def do_watch(creds, args):
@@ -157,11 +205,18 @@ def get_arg_parser():
         help='Test the connection to the controller',
     ).set_defaults(func=do_connect)
 
-    saps.add_parser(
+    listap = saps.add_parser(
         'list',
         aliases=['l', 'ls'],
         help='List all elements found on the controller'
-    ).set_defaults(func=do_list)
+    )
+    listap.add_argument(
+        '-t', '--device_type',
+        metavar="TYPE",
+        action="store",
+        help='device type to list -- will list all if ommitted',
+    )
+    listap.set_defaults(func=do_list)
 
     saps.add_parser(
         'watch',
