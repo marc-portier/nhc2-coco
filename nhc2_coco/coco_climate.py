@@ -8,7 +8,7 @@ from homeassistant.components.climate import (
     TEMP_CELSIUS,
     SUPPORT_TARGET_TEMPERATURE,
     SUPPORT_TARGET_TEMPERATURE_RANGE,
-    SUPPORT_PRESET_MODE, 
+    SUPPORT_PRESET_MODE,
     HVAC_MODE_HEAT,
     HVAC_MODE_HEAT_COOL
 )
@@ -91,6 +91,11 @@ class CoCoThermostat(CoCoEntity):
         self.get_target_temperature_params(dev)
         self.get_ambient_temperature_params(dev)
         self.get_program_params(dev)
+
+    # refactoring::addition allow entities to represent themselves as string
+    def __str__(self):
+        state_str = f"@ {self.current_temperature}°C > {self.target_temperature}°C"
+        return super(CoCoThermostat, self).__str__() + ' ' + state_str
 
     async def async_turn_on(self):
         pass

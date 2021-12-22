@@ -14,6 +14,12 @@ class CoCoGeneric(CoCoEntity):
         self._is_on = None
         self.update_dev(dev, callback_container)
 
+    # refactoring::addition allow entities to represent themselves as string
+    def __str__(self):
+        state_str = 'ON' if self.is_on else 'OFF'
+        return super(CoCoFan, self).__str__() + ' ' + state_str
+
+
     def turn_on(self):
         self._command_device_control(self._uuid, KEY_BASICSTATE, VALUE_TRIGGERED)
 

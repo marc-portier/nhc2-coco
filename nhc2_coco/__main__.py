@@ -64,6 +64,7 @@ def assertConnectionSettings (creds):
     assert creds.port is not None and creds.port != 0 , "Connection test requires a port to connect to."
 
 async def do_connect(creds, args):
+    # todo --> change this to 'info' action and use CoCoLoginValidation to do a proper login test
     assertConnectionSettings(creds)
     clout(f"Testing connection to host '{creds.host}'")
 
@@ -83,21 +84,23 @@ async def do_connect(creds, args):
     # register event-handlers
     coco.get_systeminfo(sysinfo_handler)
     coco.on_error(error_handler)
-    # todo - we should register a catch-all timeout-thread to avoid 'keep waiting' if neither error or sysinfo comes in?
 
     # try and connect
     coco.connect()
 
-
-async def do_list(creds, args):
-    assertConnectionSettings(creds)
-    # todo allow specify TYPE of elements to list
+def get_selected_types(args):
     type_names = DEVICE_TYPENAMES
     type_name = args.device_type
     if type_name is not None:
         type_name = type_name.lower()
         assert type_name in DEVICE_TYPENAMES, f"requested type {type_name} must be one of {DEVICE_TYPENAMES}"
         type_names = {type_name}
+    return type_names
+
+async def do_list(creds, args):
+    assertConnectionSettings(creds)
+    type_names = get_selected_types(args)
+
     clout(f"Listing devices known to host '{creds.host}' of type: {type_names}")
 
     def done_device_class(cdc):

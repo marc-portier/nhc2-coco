@@ -14,6 +14,11 @@ class CoCoShutter(CoCoEntity):
         self._position = None
         self.update_dev(dev, callback_container)
 
+    # refactoring::addition allow entities to represent themselves as string
+    def __str__(self):
+        state_str = f"@{self.position:=+4d}"
+        return super(CoCoFan, self).__str__() + ' ' + state_str
+
     def open(self):
         self._command_device_control(self._uuid, KEY_ACTION, VALUE_OPEN)
 
