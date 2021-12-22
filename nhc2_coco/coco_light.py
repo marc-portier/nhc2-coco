@@ -21,6 +21,17 @@ class CoCoLight(CoCoEntity):
     def support_brightness(self):
         return self._model == VALUE_DIMMER
 
+    # refactoring::addition allow entities to represent themselves as string
+    def __str__(self):
+        state_str = ''
+        if self.is_on:
+            state_str += 'ON'
+            if self.support_brightness:
+                state_str += f' ({self.brightness}%)'
+        else:
+            state_str += 'OFF'
+        return super(CoCoLight, self).__str__() + ' ' + state_str
+
     def __init__(self, dev, callback_container, client, profile_creation_id, command_device_control):
         super().__init__(dev, callback_container, client, profile_creation_id, command_device_control)
         self._is_on = None

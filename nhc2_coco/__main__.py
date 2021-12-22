@@ -15,7 +15,8 @@ from nhc2_coco import CoCo
 _LOGGER = logging.getLogger(__name__)
 DEFAULT_HOST = 'nhc2.local'
 DEFAULT_PORT = 8883
-DEVICE_TYPES = {CoCoDeviceClass.GENERIC, CoCoDeviceClass.SWITCHES, CoCoDeviceClass.LIGHTS, CoCoDeviceClass.SHUTTERS}
+#DEVICE_TYPES = {CoCoDeviceClass.GENERIC, CoCoDeviceClass.SWITCHES, CoCoDeviceClass.LIGHTS, CoCoDeviceClass.SHUTTERS}
+DEVICE_TYPES = set(CoCoDeviceClass)  # list of all items in the enum
 DEVICE_TYPENAMES = {cdc.value for cdc in DEVICE_TYPES}
 
 
@@ -90,7 +91,6 @@ async def do_connect(creds, args):
 
 async def do_list(creds, args):
     assertConnectionSettings(creds)
-    clout(f"Listing devices known to host '{creds.host}'")
     # todo allow specify TYPE of elements to list
     type_names = DEVICE_TYPENAMES
     type_name = args.device_type
@@ -98,40 +98,32 @@ async def do_list(creds, args):
         type_name = type_name.lower()
         assert type_name in DEVICE_TYPENAMES, f"requested type {type_name} must be one of {DEVICE_TYPENAMES}"
         type_names = {type_name}
+    clout(f"Listing devices known to host '{creds.host}' of type: {type_names}")
 
-    def done(cdc):
+    def done_device_class(cdc):
         # remove name from type_names
         type_names.remove(cdc.value)
         # disconnect if none left
         if len(type_names) == 0:
             coco.disconnect()
-    def generics_handler(all):
-        clout("todo generics handler", all)
-        done(CoCoDeviceClass.GENERIC)
-    def shutter_handler(all):
-        clout("todo shutter handler", all)
-        done(CoCoDeviceClass.SHUTTERS)
-    def switch_handler(all):
-        clout("todo switch handler", all)
-        done(CoCoDeviceClass.SWITCHES)
-    def light_handler(all):
-        clout("todo light handler", all)
-        done(CoCoDeviceClass.LIGHTS)
-    class_handler = {
-        CoCoDeviceClass.GENERIC: generics_handler,
-        CoCoDeviceClass.SHUTTERS: shutter_handler,
-        CoCoDeviceClass.SWITCHES: switch_handler,
-        CoCoDeviceClass.LIGHTS: light_handler,
-    }
+    def make_class_handler(cdc):
+        tname = cdc.value
+        def handler(all):
+            clout(f"Found {len(all)} device(s) of type '{tname}'", em=True)
+            for dev in all:
+                try:
+                    clout(f"  {dev}")
+                except Exception as e:
+                    clout(f"  *** ERR *** report-failure: {e}")
+                    _LOGGER.exception(e)
+            done_device_class(cdc)
+        return handler
 
     coco = CoCo(creds.host, creds.user, creds.pswd, creds.port)
     coco.connect()
     for name in type_names:
         cdc = CoCoDeviceClass(name)
-        handler = class_handler[cdc]
-        coco.get_devices(cdc, handler)
-
-    _LOGGER.info("TODO -- implement listing all found elements")
+        coco.get_devices(cdc, make_class_handler(cdc))
 
 
 async def do_watch(creds, args):

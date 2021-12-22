@@ -53,7 +53,13 @@ $ nhc2_coco connect
 
 ## List elements on your nhc2 host in a comprehensive reporting
 
-todo
+The `list` action allows to
+* list all the found devices on the nhc2 host
+* together with some basic state information
+
+```bash
+$ nhc2_coco list
+```
 
 ## Watch for events from elements on your nhc2 hosts
 

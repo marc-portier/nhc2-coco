@@ -15,6 +15,11 @@ class CoCoFan(CoCoEntity):
         self._fan_speed = None
         self.update_dev(dev, callback_container)
 
+    # refactoring::addition allow entities to represent themselves as string
+    def __str__(self):
+        state_str = f"@{self.fan_speed.name:.<10s}"
+        return super(CoCoFan, self).__str__() + ' ' + state_str
+
     def change_speed(self, speed: CoCoFanSpeed):
         self._command_device_control(self._uuid, KEY_FAN_SPEED, speed.value)
 

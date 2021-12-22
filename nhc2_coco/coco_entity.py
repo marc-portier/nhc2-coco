@@ -39,6 +39,10 @@ class CoCoEntity(ABC):
         with self._callback_mutex:
             self._on_change = func
 
+    # refactoring::addition allow entities to represent themselves as string
+    def __str__(self):
+        return f"({'*' if self._online else '-'}) «{self._type:>6s}:{self._model:<17s}» {self._name:<45s}."
+
     def __init__(self, dev, callback_container, client, profile_creation_id, command_device_control):
         self._client = client
         self._profile_creation_id = profile_creation_id
