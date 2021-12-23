@@ -16,7 +16,6 @@ from nhc2_coco import CoCo
 _LOGGER = logging.getLogger(__name__)
 DEFAULT_HOST = 'nhc2.local'
 DEFAULT_PORT = 8883
-#DEVICE_TYPES = {CoCoDeviceClass.GENERIC, CoCoDeviceClass.SWITCHES, CoCoDeviceClass.LIGHTS, CoCoDeviceClass.SHUTTERS}
 DEVICE_TYPES = set(CoCoDeviceClass)  # list of all items in the enum
 DEVICE_TYPENAMES = {cdc.value for cdc in DEVICE_TYPES}
 
@@ -61,8 +60,10 @@ async def do_discover(creds, args: Namespace):
 
 
 def assertConnectionSettings (creds):
-    assert creds.host is not None, "Connection test requires a host to connect to."
-    assert creds.port is not None and creds.port != 0 , "Connection test requires a port to connect to."
+    assert creds.host is not None, "This action requires a host to connect to."
+    assert creds.port is not None and creds.port != 0 , "This action requires a port to connect to."
+    assert creds.user is not None, "This action requires a user to connect to the nhc2 host."
+    assert creds.pswd is not None, "This action requires a password to connect to the nhc2 host."
 
 async def do_connect(creds, args):
     assertConnectionSettings(creds)
