@@ -1,12 +1,11 @@
 import asyncio
 import os
-
+import logging
 import paho.mqtt.client as mqtt
-
 from nhc2_coco.const import MQTT_PROTOCOL, MQTT_TRANSPORT
 
 loop = asyncio.get_event_loop()
-
+_LOGGER=logging.getLogger(__name__)
 
 class CoCoLoginValidation:
     """ Validate one can login on the CoCo
@@ -51,8 +50,9 @@ class CoCoLoginValidation:
 
         try:
             await asyncio.wait_for(done_testing.wait(), timeout + 2)
-        except:
-            pass
+        except Exception as e:
+            # refactoring::addition - rather log it then simply ignore
+            _LOGGER.excpetion(e)
 
         client.disconnect()
         client.loop_stop()

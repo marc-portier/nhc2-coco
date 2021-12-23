@@ -9,6 +9,7 @@ import logging
 import logging.config
 from nhc2_coco.coco_discover_profiles import CoCoDiscoverProfiles
 from nhc2_coco.coco_device_class import CoCoDeviceClass
+from nhc2_coco.coco_login_validation import CoCoLoginValidation
 from nhc2_coco import CoCo
 
 
@@ -64,9 +65,20 @@ def assertConnectionSettings (creds):
     assert creds.port is not None and creds.port != 0 , "Connection test requires a port to connect to."
 
 async def do_connect(creds, args):
-    # todo --> change this to 'info' action and use CoCoLoginValidation to do a proper login test
     assertConnectionSettings(creds)
     clout(f"Testing connection to host '{creds.host}'")
+
+    clv = CoCoLoginValidation(creds.host, creds.user, creds.pswd, creds.port)
+    resp = await clv.check_connection()
+    if resp == 0:
+        clout(f"Connection SUCCESFUL", em=True)
+    else:
+        clout(f"Connection FAILED (response == {resp})", em=True)
+
+
+async def do_info(creds, args):
+    assertConnectionSettings(creds)
+    clout(f"Getting System-Info from host '{creds.host}'")
 
     coco = CoCo(creds.host, creds.user, creds.pswd, creds.port)
 
@@ -199,6 +211,12 @@ def get_arg_parser():
         aliases=['c', 'con', 'conn'],
         help='Test the connection to the controller',
     ).set_defaults(func=do_connect)
+
+    saps.add_parser(
+        'info',
+        aliases=['i', 'info'],
+        help='Dump system info about the controller',
+    ).set_defaults(func=do_info)
 
     listap = saps.add_parser(
         'list',
