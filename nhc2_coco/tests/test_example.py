@@ -1,13 +1,12 @@
 from nhc2_coco import CoCo
 from nhc2_coco.coco_device_class import CoCoDeviceClass
 from credentials import HOST, USER, PASS, PORT
-
-
 import os
 import yaml
 import logging
 import logging.config
 _LOGGER = logging.getLogger(__name__)
+
 
 def enable_logging():
     logconf = os.environ.get('NHC2_LOGCONF')
@@ -17,6 +16,7 @@ def enable_logging():
     with open(logconf, 'r') as yml_logconf:
         logging.config.dictConfig(yaml.load(yml_logconf, Loader=yaml.SafeLoader))
     _LOGGER.info(f"Logging enabled according to config in {logconf}")
+
 
 enable_logging()
 
