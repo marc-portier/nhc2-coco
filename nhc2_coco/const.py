@@ -1,7 +1,5 @@
 import paho.mqtt.client as mqtt
 
-from enum import Enum
-
 
 MQTT_TLS_VERSION = 2
 MQTT_PROTOCOL = mqtt.MQTTv311
