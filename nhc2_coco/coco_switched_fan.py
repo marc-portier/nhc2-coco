@@ -17,7 +17,7 @@ class CoCoSwitchedFan(CoCoEntity):
     # refactoring::addition allow entities to represent themselves as string
     def __str__(self):
         state_str = 'ON' if self.is_on else 'OFF'
-        return super(CoCoFan, self).__str__() + ' ' + state_str
+        return super(CoCoSwitchedFan, self).__str__() + ' ' + state_str
 
     def turn_on(self):
         self._command_device_control(self._uuid, KEY_STATUS, VALUE_ON)
