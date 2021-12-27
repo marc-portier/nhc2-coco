@@ -12,6 +12,7 @@ import logging.config
 from nhc2_coco.coco_discover_profiles import CoCoDiscoverProfiles
 from nhc2_coco.coco_device_class import CoCoDeviceClass
 from nhc2_coco.coco_login_validation import CoCoLoginValidation
+from nhc2_coco.const import MQTT_RC_CODES
 from nhc2_coco import CoCo
 
 
@@ -72,14 +73,8 @@ async def do_connect(creds, args):
     assertConnectionSettings(creds)
     clout(f"Testing connection to host '{creds.host}'")
 
-    response_texts = [
-        'Connection successful',
-        'Connection refused - incorrect protocol version',
-        'Connection refused - invalid client identifier',
-        'Connection refused - server unavailable',
-        'Connection refused - bad username or password',
-        'Connection refused - not authorised',
-    ]
+    response_texts = list(MQTT_RC_CODES)
+    response_texts[0] = 'Connection successful'
 
     clv = CoCoLoginValidation(creds.host, creds.user, creds.pswd, creds.port)
     resp = await clv.check_connection()
