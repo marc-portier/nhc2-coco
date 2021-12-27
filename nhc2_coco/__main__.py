@@ -306,10 +306,10 @@ def get_arg_parser():
     )
     ap.add_argument(
         '-l', '--logconf',
-        metavar="<path to logconf file in yml format>",
+        metavar="LOGCONF_FILE.yml",
         type=str,
         action='store',
-        help='where to move the logging to',
+        help='The config file for the Logging in yml format',
     )
     ap.add_argument(
         '-H', '--host',
