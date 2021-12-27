@@ -1,5 +1,5 @@
 from .coco_entity import CoCoEntity
-from .const import KEY_BASICSTATE, VALUE_TRIGGERED, VALUE_ON, KEY_STATUS
+from .const import KEY_BASICSTATE, VALUE_TRIGGERED, VALUE_ON
 from .helpers import extract_property_value_from_device
 
 
@@ -18,7 +18,6 @@ class CoCoGeneric(CoCoEntity):
     def __str__(self):
         state_str = 'ON' if self.is_on else 'OFF'
         return super(CoCoGeneric, self).__str__() + ' ' + state_str
-
 
     def turn_on(self):
         self._command_device_control(self._uuid, KEY_BASICSTATE, VALUE_TRIGGERED)
