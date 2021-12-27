@@ -48,7 +48,7 @@ class CoCoDiscover:
         _LOGGER.info(f'Available broadcast IPS to check = {broadcast_ips}')
         for broadcast_ip in broadcast_ips:
             server.sendto(bytes([0x44]), (broadcast_ip, 10000))
-            _LOGGER.info(f"broadcast 0x44 sent to {broadcast_ip}")
+            _LOGGER.debug(f"broadcast 0x44 sent to {broadcast_ip}")
         server.setblocking(0)
         loops = 0
 
