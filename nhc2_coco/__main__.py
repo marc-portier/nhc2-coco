@@ -72,7 +72,7 @@ async def do_connect(creds, args):
     assertConnectionSettings(creds)
     clout(f"Testing connection to host '{creds.host}'")
 
-    reponse_texts=[
+    response_texts=[
         'Connection successful',
         'Connection refused - incorrect protocol version',
         'Connection refused - invalid client identifier',
