@@ -3,7 +3,8 @@ from .const import KEY_STATUS, VALUE_ON, VALUE_OFF
 from .helpers import extract_property_value_from_device
 
 
-# refactorin::suggestion big similarity & boilerplae code between CoCoSwitch, CoCoSwitchedFan, CoCoGeneric, ... think about pattern to model that nicely?
+# refactoring::suggestion big similarity & boilerplae code between CoCoSwitch, CoCoSwitchedFan, CoCoGeneric, ...
+#                                      think about pattern to model that nicely?
 class CoCoSwitch(CoCoEntity):
 
     @property
