@@ -5,7 +5,8 @@ import paho.mqtt.client as mqtt
 from nhc2_coco.const import MQTT_PROTOCOL, MQTT_TRANSPORT
 
 loop = asyncio.get_event_loop()
-_LOGGER=logging.getLogger(__name__)
+_LOGGER = logging.getLogger(__name__)
+
 
 class CoCoLoginValidation:
     """ Validate one can login on the CoCo
@@ -19,9 +20,9 @@ class CoCoLoginValidation:
         if self._ca_path is None:
             self._ca_path = os.path.dirname(os.path.realpath(__file__)) + '/coco_ca.pem'
 
-
     async def check_connection(self, timeout=10):
-        # refactoring::suggestion allow this class to do this message translataion too, either return tuple, or have some staticmethod response_as_text
+        # refactoring::suggestion allow this class to do this message translataion too,
+        #               either return tuple, or have some staticmethod response_as_text
         """ Try to connect with given parameters
             The return indicates success or not:
                 0: Connection successful
