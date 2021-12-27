@@ -4,6 +4,9 @@ from collections import namedtuple
 import os
 import sys
 import asyncio
+import threading
+import time
+import datetime
 import json
 import logging
 import logging.config
@@ -69,12 +72,21 @@ async def do_connect(creds, args):
     assertConnectionSettings(creds)
     clout(f"Testing connection to host '{creds.host}'")
 
+    reponse_texts=[
+        'Connection successful',
+        'Connection refused - incorrect protocol version',
+        'Connection refused - invalid client identifier',
+        'Connection refused - server unavailable',
+        'Connection refused - bad username or password',
+        'Connection refused - not authorised',
+    ]
+
     clv = CoCoLoginValidation(creds.host, creds.user, creds.pswd, creds.port)
     resp = await clv.check_connection()
-    if resp == 0:
-        clout(f"Connection SUCCESFUL", em=True)
+    if resp < len(response_texts):
+        clout(response_texts[resp], em=True)
     else:
-        clout(f"Connection FAILED (response == {resp})", em=True)
+        clout(f"Connection FAILED (with unkown response code == {resp})", em=True)
 
 
 async def do_info(creds, args):
@@ -116,7 +128,7 @@ async def do_list(creds, args):
 
     clout(f"Listing devices known to host '{creds.host}' of type: {type_names}")
 
-    def done_device_class(cdc):
+    def done_listing_device_class(cdc):
         # remove name from type_names
         type_names.remove(cdc.value)
         # disconnect if none left
@@ -132,7 +144,7 @@ async def do_list(creds, args):
                 except Exception as e:
                     clout(f"  *** ERR *** report-failure: {e}")
                     _LOGGER.exception(e)
-            done_device_class(cdc)
+            done_listing_device_class(cdc)
         return handler
 
     coco = CoCo(creds.host, creds.user, creds.pswd, creds.port)
@@ -141,18 +153,93 @@ async def do_list(creds, args):
         cdc = CoCoDeviceClass(name)
         coco.get_devices(cdc, make_class_handler(cdc))
 
+def isotime():
+    return datetime.datetime.now().replace(microsecond=0).isoformat()
 
 async def do_watch(creds, args):
-    _LOGGER.info("TODO -- implement watch mode reporting on all events")
-    # todo allow specify TYPE of elements to list
-    # listen for input keys --> disconnect on any key
+    assertConnectionSettings(creds)
+    type_names = get_selected_types(args)
+    uuid = args.uuid
+    lapse = int(args.time)
+    assert lapse == -1 or lapse > 0, "Parameter for «time» seconds to wait should be either positive or -1 to disable timeout."
+    lapse = None if lapse == -1 else lapse  # recode -1 to None so to use it in threading.Event.wait(lapse)
 
+    if uuid is None:
+        clout(f"Watching devices on '{creds.host}' of type: {type_names} for {lapse} seconds")
+    else:
+        clout(f"Watching device {uuid} on '{creds.host}' for {lapse} seconds")
+
+    def is_matching(dev_uuid) :
+        return uuid is None or dev_uuid.startswith(uuid)
+
+    monitoring = list()
+    def done_registering_device_class(cdc):
+        # remove name from type_names
+        type_names.remove(cdc.value)
+        # report on registration count when none left
+        if len(type_names) == 0:
+            if len(monitoring) == 0:
+                clout(f"Nothing to monitor - exiting" , em=True)
+                quit_request.set()
+            else:
+                clout(f"Actively monitoring {len(monitoring)} devices" , em=True)
+
+    def make_class_handler(cdc):
+        def handler(all):
+            _LOGGER.debug(f"getting {len(all)} devices of type {cdc.value}")
+            for dev in all:
+                if is_matching(dev.uuid):
+                    def listener():
+                        clout(f"[{isotime()}] {dev}")
+                    dev.on_change=listener
+                    monitoring.append(dev)
+                    _LOGGER.debug(f"monitoring device:  {cdc.value}({dev.uuid})")
+            done_registering_device_class(cdc)
+        return handler
+
+    coco = CoCo(creds.host, creds.user, creds.pswd, creds.port)
+    coco.connect()
+    for name in type_names:
+        cdc = CoCoDeviceClass(name)
+        coco.get_devices(cdc, make_class_handler(cdc))
+
+    # allow keyboard interrupt of the watching
+    quit_request = threading.Event()
+    def listen_for_Q():
+        msg = "Press 'Q' «enter» to terminate."
+        clout(msg)
+        listening = True
+        mistries = 0
+        while listening:
+            answ = input()
+            if answ.upper() == 'Q':
+                listening = False
+            else:
+                mistries += 1
+                if (mistries % 5 == 0): clout(msg)
+        _LOGGER.debug("keyboard quit received")
+        quit_request.set()
+    keyb_quit_thread = threading.Thread(target=listen_for_Q, daemon=True)
+    keyb_quit_thread.start()
+
+    quit_request.wait(lapse)
+    # clean up
+    coco.disconnect()
+
+
+async def do_act(creds, args):
+    _LOGGER.info("TODO -- implement setting device {args.uuid} to {args.state}")
 
 async def do_shell(creds, args):
     _LOGGER.info("TODO -- implement an interactive shell to capture commands and 'talk' to the controller")
-    # need to consider some command syntax ? construct a language and use some parser-generator ?
-    # might be useful in a separate project?
+    # need to consider some command syntax ? construct a language and use some parser-generator ? (e.g. https://www.dabeaz.com/ply/)
+    # might be useful in a separate branch?
+    # + think well about how such shell language should look like
 
+def action_alias_subs(word, *extra):
+    """ Produce all leading substrings of the passed word to use as action aliases. Adds indvidual extra's too.
+    """
+    return [word[:n] for n in range(1, len(word))] + list(extra)
 
 def get_arg_parser():
     """ Defines the arguments to this module's __main__ cli script
@@ -203,25 +290,25 @@ def get_arg_parser():
 
     saps.add_parser(
         'discover',
-        aliases=['d', 'disc'],
+        aliases=action_alias_subs('discover'),
         help='Discover all nhc2 systems on the network',
     ).set_defaults(func=do_discover)
 
     saps.add_parser(
         'connect',
-        aliases=['c', 'con', 'conn'],
+        aliases=action_alias_subs('connect'),
         help='Test the connection to the controller',
     ).set_defaults(func=do_connect)
 
     saps.add_parser(
         'info',
-        aliases=['i', 'info'],
+        aliases=action_alias_subs('info'),
         help='Dump system info about the controller',
     ).set_defaults(func=do_info)
 
     listap = saps.add_parser(
         'list',
-        aliases=['l', 'ls'],
+        aliases=action_alias_subs('list', 'ls'),
         help='List all elements found on the controller'
     )
     listap.add_argument(
@@ -232,11 +319,53 @@ def get_arg_parser():
     )
     listap.set_defaults(func=do_list)
 
-    saps.add_parser(
+    watchap = saps.add_parser(
         'watch',
-        aliases=['w', 'wat'],
+        aliases=action_alias_subs('watch'),
         help='Watch and report all events on the controller'
-    ).set_defaults(func=do_watch)
+    )
+    watchap.add_argument(
+        'time',
+        metavar="SECONDS",
+        nargs='?',
+        default=300,  # 5 minutes
+        action="store",
+        help='device type to watch -- will watch all if ommitted',
+    )
+    watchap.add_argument(
+        '-t', '--device_type',
+        metavar="TYPE",
+        action="store",
+        help='device type to watch -- will watch all if ommitted',
+    )
+    watchap.add_argument(
+        '-u', '--uuid',
+        metavar="UUID",
+        action="store",
+        help='single device uuid (matching prefix is enough) to watch',
+    )
+    watchap.set_defaults(func=do_watch)
+
+    actap = saps.add_parser(
+        'act',
+        aliases=action_alias_subs('set'),
+        help='Set a particular device to on/off/toggle'
+    )
+    actap.add_argument(
+        'uuid',
+        metavar="UUID",
+        action="store",
+        nargs=1,
+        help='single device uuid (matching prefix is enough) to set',
+    )
+    actap.add_argument(
+        'state',
+        metavar="STATE",
+        action="store",
+        nargs=1,
+        help='ON | 0 | OFF | 1 | TOGGLE | x | LOW | MEDIUM | HIGH | BOOST | pp%',
+    )
+    actap.set_defaults(func=do_act)
 
     saps.add_parser(
         'shell',
@@ -251,7 +380,7 @@ def credentials(args: Namespace):
     """Returns a simple structure holding the to be applied credentials merged from CLI args and .env
     """
     host = args.host if args.host else os.environ.get('NHC2_HOST', DEFAULT_HOST)
-    # host == '@' is forcing to look around - use case override:  .env on cli
+    # host == '@' is forcing to look around - use case override: .env setting with cli
     host = None if host == '@' else host
     port = int(args.port if args.port else os.environ.get('NHC2_PORT', DEFAULT_PORT))
     user = args.user if args.user else os.environ.get('NHC2_USER')
