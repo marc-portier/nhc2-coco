@@ -4,9 +4,7 @@ import os
 import threading
 from time import sleep
 from typing import Callable
-
 import paho.mqtt.client as mqtt
-
 from .coco_device_class import CoCoDeviceClass
 from .coco_fan import CoCoFan
 from .coco_light import CoCoLight
@@ -15,9 +13,21 @@ from .coco_switch import CoCoSwitch
 from .coco_switched_fan import CoCoSwitchedFan
 from .coco_climate import CoCoThermostat
 from .coco_generic import CoCoGeneric
-
-from .const import *
-from .helpers import *
+from .const import (
+    MQTT_PROTOCOL, MQTT_TRANSPORT, MQTT_CERT_FILE,
+    LIST_VALID_LIGHTS, LIST_VALID_SWITCHES, LIST_VALID_SHUTTERS, LIST_VALID_FANS, LIST_VALID_SWITCHED_FANS,
+    LIST_VALID_THERMOSTATS, LIST_VALID_GENERICS,
+    DEVICE_CONTROL_BUFFER_SIZE, DEVICE_CONTROL_BUFFER_COMMAND_SIZE,
+    KEY_ENTITY, KEY_METHOD, KEY_MODEL, KEY_TYPE, KEY_UUID,
+    DEV_TYPE_ACTION,
+    INTERNAL_KEY_CALLBACK, INTERNAL_KEY_MODELS, INTERNAL_KEY_CLASS,
+    MQTT_METHOD_SYSINFO_PUBLISH, MQTT_METHOD_SYSINFO_PUBLISHED,
+    MQTT_METHOD_DEVICES_LIST, MQTT_METHOD_DEVICES_STATUS, MQTT_METHOD_DEVICES_CHANGED,
+    MQTT_RC_CODES,
+    MQTT_TOPIC_SUFFIX_SYS_EVT, MQTT_TOPIC_PUBLIC_CMD, MQTT_TOPIC_PUBLIC_RSP,
+    MQTT_TOPIC_SUFFIX_CMD, MQTT_TOPIC_SUFFIX_RSP, MQTT_TOPIC_SUFFIX_EVT,
+)
+from .helpers import extract_devices, process_device_commands
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -40,8 +50,8 @@ class CoCo:
     def __init__(self, address, username, password, port=8883, ca_path=None, switches_as_lights=False):
 
         _LOGGER.info(f"initializing Coco({address}, {username}, {password[:3]}...{password[-2:]}, {port}")
-        # refactoring::warning -- local constructor argument (switches_as_lights) with an effect on a global variable (DEVICE_SETS)!!!
-        #      (considered harmfull)
+        # refactoring::warning -- local constructor argument (switches_as_lights) with an effect on a global variable
+        #       this will alter global (const?) DEVICE_SET (considered harmfull)
         if switches_as_lights:
             DEVICE_SETS[CoCoDeviceClass.LIGHTS] = {INTERNAL_KEY_CLASS: CoCoLight,
                                                    INTERNAL_KEY_MODELS: LIST_VALID_LIGHTS + LIST_VALID_SWITCHES}
@@ -58,13 +68,12 @@ class CoCo:
         if ca_path is None:
             ca_path = os.path.dirname(os.path.realpath(__file__)) + MQTT_CERT_FILE
         client = mqtt.Client(protocol=MQTT_PROTOCOL, transport=MQTT_TRANSPORT)
-        _LOGGER.debug(f"mqtt client ok")
         client.username_pw_set(username, password)
         _LOGGER.debug(f"setting user:pass {username}:{password[:3]}...{password[-2:]}")
         client.tls_set(ca_path)
         _LOGGER.debug(f"using ca path == {ca_path} to set up client")
         client.tls_insecure_set(True)
-        _LOGGER.debug(f"MQTT client ready")
+        _LOGGER.debug("MQTT client ready")
         self._client = client
         self._address = address
         self._port = port
@@ -80,13 +89,14 @@ class CoCo:
         # refactoring::suggestion -- the various callback routines sound like either
         #   * some pub/sub event framework could be used  - like https://pypi.org/project/circuits/
         #   * or some Observer could be considered - like https://refactoring.guru/design-patterns/observer/python/example
-        _LOGGER.debug(f"Done initializing Coco")
+        _LOGGER.debug("Done initializing Coco")
 
     def __del__(self):
         self.disconnect()
 
     def connect(self):
         _LOGGER.info(f"connecting ({str(self)})")
+
         def _on_message(client, userdata, message):
             topic = message.topic
             response = json.loads(message.payload)
@@ -114,15 +124,14 @@ class CoCo:
                                json.dumps({KEY_METHOD: MQTT_METHOD_DEVICES_LIST}), 1)
 
             elif topic == (self._profile_creation_id + MQTT_TOPIC_SUFFIX_EVT) \
-                    and (response[KEY_METHOD] == MQTT_METHOD_DEVICES_STATUS or response[
-                KEY_METHOD] == MQTT_METHOD_DEVICES_CHANGED):
+                    and (response[KEY_METHOD] == MQTT_METHOD_DEVICES_STATUS or response[KEY_METHOD] == MQTT_METHOD_DEVICES_CHANGED):
                 devices = extract_devices(response)
                 for device in devices:
                     try:
                         if KEY_UUID in device:
                             self._device_callbacks[device[KEY_UUID]][INTERNAL_KEY_CALLBACK](device)
-                    except:
-                        pass
+                    except Exception as e:
+                        _LOGGER.exception(e)
 
         def _on_connect(client, userdata, flags, rc):
             if rc == 0:
@@ -164,7 +173,7 @@ class CoCo:
         # refactoring::addition -- since disconnect now stops we need this if we disconnect-reconnect in one session
         self._keep_thread_running = True
         self._client.loop_start()
-        _LOGGER.debug(f"Coco connect async called and loop started.")
+        _LOGGER.debug("Coco connect async called and loop started.")
 
     def disconnect(self):
         # refactoring::addition -- thread not really stopped if flag remains True
@@ -194,7 +203,7 @@ class CoCo:
     # refactoring::suggestion -- when adopting event framework - we should allow for un-listening too
     # refactoring::addition -- allow users to know about errors
     def on_error(self, ehfn):
-        assert callable(ehfn) , "argument to on_error must be callable"
+        assert callable(ehfn), "argument to on_error must be callable"
         self._error_handlers.append(ehfn)
 
     def _publish_device_control_commands(self):
