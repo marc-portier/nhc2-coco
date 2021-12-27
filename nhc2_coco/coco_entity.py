@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from nhc2_coco.const import KEY_NAME, CALLBACK_HOLDER_PROP, KEY_TYPE, KEY_MODEL, KEY_ONLINE, KEY_DISPLAY_NAME
 from nhc2_coco.helpers import dev_prop_changed
 
+
 class CoCoEntity(ABC):
 
     @property
