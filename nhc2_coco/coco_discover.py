@@ -33,8 +33,10 @@ class CoCoDiscover:
     def _get_broadcast_ips():
         def notNone(x):
             return bool(x)  # sipmple python interpretation of valid 'existence'
+
         def if2bcast(i):
             return netifaces.ifaddresses(i).get(netifaces.AF_INET, [{}])[0].get('broadcast')
+
         return set(filter(notNone, map(if2bcast, netifaces.interfaces())))
 
     def _scan_for_nhc(self):
