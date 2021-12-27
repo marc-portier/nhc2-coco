@@ -1,4 +1,3 @@
-import binascii
 import select
 import threading
 import socket
@@ -8,6 +7,7 @@ import logging
 
 
 _LOGGER = logging.getLogger(__name__)
+
 
 class CoCoDiscover:
     """CoCoDiscover will help you discover NHC2.
@@ -29,11 +29,12 @@ class CoCoDiscover:
         self._thread.start()
         _LOGGER.info(f"CoCoDiscover started with callbacks: {on_discover}, {on_done}")
 
-
     @staticmethod
     def _get_broadcast_ips():
-        notNone = lambda x: x
-        if2bcast = lambda i: netifaces.ifaddresses(i).get(netifaces.AF_INET, [{}])[0].get('broadcast')
+        def notNone(x):
+            return bool(x)  # sipmple python interpretation of valid 'existence'
+        def if2bcast(if):
+            return netifaces.ifaddresses(if).get(netifaces.AF_INET, [{}])[0].get('broadcast')
         return set(filter(notNone, map(if2bcast, netifaces.interfaces())))
 
     def _scan_for_nhc(self):
@@ -62,7 +63,7 @@ class CoCoDiscover:
                     if self._on_discover:
                         self._discovered_at_least_one = True
                         self._on_discover(addr[0], mac, is_nhc2)
-                        _LOGGER.debug(f"discovery callback done")
+                        _LOGGER.debug("discovery callback done")
         server.close()
         self._on_done()
         _LOGGER.debug("done scanning nhc")
