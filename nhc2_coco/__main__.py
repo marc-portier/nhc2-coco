@@ -5,7 +5,6 @@ import os
 import sys
 import asyncio
 import threading
-import time
 import datetime
 import json
 import logging
@@ -62,17 +61,18 @@ async def do_discover(creds, args: Namespace):
             clout(f'  uuid: {uuid}\n  Name: {name}\n  Type: {type}')
 
 
-def assertConnectionSettings (creds):
+def assertConnectionSettings(creds):
     assert creds.host is not None, "This action requires a host to connect to."
-    assert creds.port is not None and creds.port != 0 , "This action requires a port to connect to."
+    assert creds.port is not None and creds.port != 0, "This action requires a port to connect to."
     assert creds.user is not None, "This action requires a user to connect to the nhc2 host."
     assert creds.pswd is not None, "This action requires a password to connect to the nhc2 host."
+
 
 async def do_connect(creds, args):
     assertConnectionSettings(creds)
     clout(f"Testing connection to host '{creds.host}'")
 
-    response_texts=[
+    response_texts = [
         'Connection successful',
         'Connection refused - incorrect protocol version',
         'Connection refused - invalid client identifier',
@@ -97,9 +97,10 @@ async def do_info(creds, args):
 
     # on succes sys info will be available - so handle that
     def sysinfo_handler(info):
-        clout(f"Sysinfo retrieved (connection succesful)", em=True)
+        clout("Sysinfo retrieved (connection succesful)", em=True)
         clout(json.dumps(info, indent=4))
         coco.disconnect()
+
     # on error - we assume the connection failed
     def error_handler(error):
         (reason, code, mqtt_msg) = error
@@ -113,6 +114,7 @@ async def do_info(creds, args):
     # try and connect
     coco.connect()
 
+
 def get_selected_types(args):
     type_names = DEVICE_TYPENAMES
     type_name = args.device_type
@@ -122,124 +124,182 @@ def get_selected_types(args):
         type_names = {type_name}
     return type_names
 
+
+class DeviceClassMonitor:
+    """ A helper class to deal with all devices (per type) known to a nhc2 hosts
+    """
+
+    def __init__(self, types: list, found_devices_cb, on_all_registered):
+        """ Initialize a monitor for the listed type_names, calling back to on_all_registered when last was received.
+        """
+        self._known_types = types
+        self._remaining_types = None
+        self._found_devices_cb = found_devices_cb
+        self._on_all_registered = on_all_registered
+        self._reset_types()
+
+    def _reset_types(self):
+        self._remaining_types = list(self._known_types)
+
+    def _handling_complete(self, cdc):
+        """ Mark the handling of one CoCoDeviceClass
+        """
+        # remove name from type_names
+        self._remaining_types.remove(cdc.value)
+        # disconnect if none left
+        if len(self._remaining_types) == 0:
+            self._on_all_registered()
+
+    def _handle_factory(self, cdc):
+        """ Makes a handler for this type of devices
+        """
+        def handler(all):
+            try:
+                self._found_devices_cb(all, cdc)
+            except Exception as e:
+                _LOGGER.exception(e)
+            finally:
+                self._handling_complete(cdc)
+        return handler
+
+    def process_devices(self, coco):
+        """ Start processing all known devivces of the initized typenames on the passed nhc2 host
+        """
+        coco.connect()
+        self._reset_types()
+        for name in self._remaining_types:
+            _LOGGER.info(f"DCM starting on {name}")
+            cdc = CoCoDeviceClass(name)
+            coco.get_devices(cdc, self._handle_factory(cdc))
+
+
 async def do_list(creds, args):
     assertConnectionSettings(creds)
     type_names = get_selected_types(args)
 
     clout(f"Listing devices known to host '{creds.host}' of type: {type_names}")
 
-    def done_listing_device_class(cdc):
-        # remove name from type_names
-        type_names.remove(cdc.value)
-        # disconnect if none left
-        if len(type_names) == 0:
-            coco.disconnect()
-    def make_class_handler(cdc):
-        tname = cdc.value
-        def handler(all):
-            clout(f"Found {len(all)} device(s) of type '{tname}'", em=True)
-            for dev in all:
-                try:
-                    clout(f"  {dev}")
-                except Exception as e:
-                    clout(f"  *** ERR *** report-failure: {e}")
-                    _LOGGER.exception(e)
-            done_listing_device_class(cdc)
-        return handler
+    def all_done():
+        coco.disconnect()
 
+    def devices_found(all, cdc):
+        clout(f"Found {len(all)} device(s) of type '{cdc.value}'", em=True)
+        for dev in all:
+            try:
+                clout(f"  {dev}")
+            except Exception as e:
+                clout(f"  *** ERR *** report-failure: {e}")
+                _LOGGER.exception(e)
+
+    dcm = DeviceClassMonitor(type_names, devices_found, all_done)
     coco = CoCo(creds.host, creds.user, creds.pswd, creds.port)
-    coco.connect()
-    for name in type_names:
-        cdc = CoCoDeviceClass(name)
-        coco.get_devices(cdc, make_class_handler(cdc))
+    dcm.process_devices(coco)
+
 
 def isotime():
     return datetime.datetime.now().replace(microsecond=0).isoformat()
+
+
+def get_lapse(args: Namespace):
+    lapse = int(args.time)
+    assert lapse == -1 or lapse > 0, "Parameter for «time» seconds to wait should be either positive or -1 to disable timeout."
+    lapse = None if lapse == -1 else lapse  # recode -1 to None so to use it in threading.Event.wait(lapse)
+    return lapse
+
+
+class EndWaitMonitor:
+    """ Helper class to allow quit-command from stdin
+    """
+    def __init__(self, *quit_commands):
+        self._quit_commands = [qc.upper() for qc in quit_commands]
+        self._event = threading.Event()
+        self._thread = threading.Thread(target=self._listen_for_quit_command, daemon=True)
+        self._start()
+
+    def _start(self):
+        self._thread.start()
+
+    def _end(self):
+        self._event.set()
+
+    def end(self):
+        """ Forcefully make wait() return
+        """
+        self._end()
+
+    def _listen_for_quit_command(self):
+        listening = True
+        while listening:
+            answ = input().upper()
+            for qc in self._quit_commands:
+                if qc.startswith(answ):
+                    listening = False
+        _LOGGER.debug("keyboard quit received")
+        self._end()
+
+    def wait(self, timeout=None):
+        """ Wait for received quit command, or bail out after timeout
+        """
+        return self._event.wait(timeout)
+
 
 async def do_watch(creds, args):
     assertConnectionSettings(creds)
     type_names = get_selected_types(args)
     uuid = args.uuid
-    lapse = int(args.time)
-    assert lapse == -1 or lapse > 0, "Parameter for «time» seconds to wait should be either positive or -1 to disable timeout."
-    lapse = None if lapse == -1 else lapse  # recode -1 to None so to use it in threading.Event.wait(lapse)
+    lapse = get_lapse(args)
 
-    if uuid is None:
-        clout(f"Watching devices on '{creds.host}' of type: {type_names} for {lapse} seconds")
-    else:
-        clout(f"Watching device {uuid} on '{creds.host}' for {lapse} seconds")
+    clout(f"Watching devices known to host '{creds.host}' of type: {type_names} or matching uuid: {uuid}")
 
     def is_matching(dev_uuid) :
+        """ if uuid is set, only that one matches, else all do
+        """
         return uuid is None or dev_uuid.startswith(uuid)
 
     monitoring = list()
-    def done_registering_device_class(cdc):
-        # remove name from type_names
-        type_names.remove(cdc.value)
-        # report on registration count when none left
-        if len(type_names) == 0:
-            if len(monitoring) == 0:
-                clout(f"Nothing to monitor - exiting" , em=True)
-                quit_request.set()
-            else:
-                clout(f"Actively monitoring {len(monitoring)} devices" , em=True)
+    def all_done():
+        if len(monitoring) == 0:
+            clout(f"Nothing to monitor - exiting" , em=True)
+            ewm.end()
+        else:
+            clout(f"Actively monitoring {len(monitoring)} devices" , em=True)
 
-    def make_class_handler(cdc):
-        def handler(all):
-            _LOGGER.debug(f"getting {len(all)} devices of type {cdc.value}")
-            for dev in all:
-                if is_matching(dev.uuid):
-                    def listener():
-                        clout(f"[{isotime()}] {dev}")
-                    dev.on_change=listener
-                    monitoring.append(dev)
-                    _LOGGER.debug(f"monitoring device:  {cdc.value}({dev.uuid})")
-            done_registering_device_class(cdc)
-        return handler
+    def devices_found(all, cdc):
+        _LOGGER.debug(f"getting {len(all)} devices of type {cdc.value}")
+        for dev in all:
+            if is_matching(dev.uuid):
+                def on_change():
+                    clout(f"@{isotime()}=>{dev}")
+                dev.on_change = on_change
+                monitoring.append(dev)
+                _LOGGER.debug(f"monitoring device: (type={cdc.value}, uuid={dev.uuid})")
 
+    dcm = DeviceClassMonitor(type_names, devices_found, all_done)
     coco = CoCo(creds.host, creds.user, creds.pswd, creds.port)
-    coco.connect()
-    for name in type_names:
-        cdc = CoCoDeviceClass(name)
-        coco.get_devices(cdc, make_class_handler(cdc))
+    dcm.process_devices(coco)
 
-    # allow keyboard interrupt of the watching
-    quit_request = threading.Event()
-    def listen_for_Q():
-        msg = "Press 'Q' «enter» to terminate."
-        clout(msg)
-        listening = True
-        mistries = 0
-        while listening:
-            answ = input()
-            if answ.upper() == 'Q':
-                listening = False
-            else:
-                mistries += 1
-                if (mistries % 5 == 0): clout(msg)
-        _LOGGER.debug("keyboard quit received")
-        quit_request.set()
-    keyb_quit_thread = threading.Thread(target=listen_for_Q, daemon=True)
-    keyb_quit_thread.start()
-
-    quit_request.wait(lapse)
+    ewm = EndWaitMonitor("quit")  # allow for quit-command interrupt over stdin
+    ewm.wait(lapse)  # wait for quit command or timeout - whatever happens first
     # clean up
     coco.disconnect()
 
 
-async def do_act(creds, args):
+async def do_act(creds, args: Namespace):
     _LOGGER.info("TODO -- implement setting device {args.uuid} to {args.state}")
 
-async def do_shell(creds, args):
+
+async def do_shell(creds, args: Namespace):
     _LOGGER.info("TODO -- implement an interactive shell to capture commands and 'talk' to the controller")
     # need to consider some command syntax ? construct a language and use some parser-generator ? (e.g. https://www.dabeaz.com/ply/)
     # might be useful in a separate branch?
     # + think well about how such shell language should look like
 
+
 def action_alias_subs(word, *extra):
     """ Produce all leading substrings of the passed word to use as action aliases. Adds indvidual extra's too.
     """
     return [word[:n] for n in range(1, len(word))] + list(extra)
+
 
 def get_arg_parser():
     """ Defines the arguments to this module's __main__ cli script
