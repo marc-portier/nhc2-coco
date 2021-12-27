@@ -248,21 +248,20 @@ async def do_watch(creds, args):
     type_names = get_selected_types(args)
     uuid = args.uuid
     lapse = get_lapse(args)
-
+    monitoring = list()
     clout(f"Watching devices known to host '{creds.host}' of type: {type_names} or matching uuid: {uuid}")
 
-    def is_matching(dev_uuid) :
+    def is_matching(dev_uuid):
         """ if uuid is set, only that one matches, else all do
         """
         return uuid is None or dev_uuid.startswith(uuid)
 
-    monitoring = list()
     def all_done():
         if len(monitoring) == 0:
-            clout(f"Nothing to monitor - exiting" , em=True)
+            clout("Nothing to monitor - exiting", em=True)
             ewm.end()
         else:
-            clout(f"Actively monitoring {len(monitoring)} devices" , em=True)
+            clout(f"Actively monitoring {len(monitoring)} devices", em=True)
 
     def devices_found(all, cdc):
         _LOGGER.debug(f"getting {len(all)} devices of type {cdc.value}")
