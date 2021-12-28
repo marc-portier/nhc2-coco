@@ -37,3 +37,14 @@ class CoCoSwitchedFan(CoCoEntity):
         has_changed = self.update_dev(dev)
         if has_changed:
             self._state_changed()
+
+    def request_state_change(self, newstate):
+        def request_state_change(self, newstate):
+            state_options = ['on', 'off', 'toggle']
+            assert newstate in state_options, f"Switch newstate must be one of {state_options}"
+            if newstate == 'toggle':
+                newstate = 'off' if self._is_on else 'on'
+            if newstate == 'on':
+                self.turn_on()
+            else:
+                self.turn_off()

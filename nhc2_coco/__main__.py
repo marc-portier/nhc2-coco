@@ -143,7 +143,11 @@ class DeviceClassMonitor:
         self._remaining_types.remove(cdc.value)
         # disconnect if none left
         if len(self._remaining_types) == 0:
-            self._on_all_registered()
+            _LOGGER.debug("done receiving all requested types.")
+            try:
+                self._on_all_registered()
+            except Exception as e:
+                _LOGGER.exception(e)
 
     def _handle_factory(self, cdc):
         """ Makes a handler for this type of devices
@@ -163,7 +167,7 @@ class DeviceClassMonitor:
         coco.connect()
         self._reset_types()
         for name in self._remaining_types:
-            _LOGGER.info(f"DCM starting on {name}")
+            _LOGGER.debug(f"DCM starting on {name}")
             cdc = CoCoDeviceClass(name)
             coco.get_devices(cdc, self._handle_factory(cdc))
 
@@ -258,13 +262,16 @@ async def do_watch(creds, args):
         else:
             clout(f"Actively monitoring {len(monitoring)} devices", em=True)
 
+    def make_device_monitor(dev):
+        def on_change():
+            clout(f"@{isotime()}=>{dev}")
+        return on_change
+
     def devices_found(all, cdc):
         _LOGGER.debug(f"getting {len(all)} devices of type {cdc.value}")
         for dev in all:
             if is_matching(dev.uuid):
-                def on_change():
-                    clout(f"@{isotime()}=>{dev}")
-                dev.on_change = on_change
+                dev.on_change = make_device_monitor(dev)
                 monitoring.append(dev)
                 _LOGGER.debug(f"monitoring device: (type={cdc.value}, uuid={dev.uuid})")
 
@@ -278,8 +285,70 @@ async def do_watch(creds, args):
     coco.disconnect()
 
 
+STATE_ALIAS_MAP = {
+    '1': 'on',
+    '0': 'off',
+    'x': 'toggle',
+}
+
+
+def get_newstate(args: Namespace):
+    newstate = args.state[0].lower()
+    newstate = STATE_ALIAS_MAP.get(newstate, newstate)  # replace value if in alias-map
+    # refactoring::suggestion Device-States are probably best also coded as objects rather then just strings
+    return newstate
+
+
 async def do_act(creds, args: Namespace):
-    _LOGGER.info("TODO -- implement setting device {args.uuid} to {args.state}")
+    assertConnectionSettings(creds)
+    uuid = args.uuid[0]
+    newstate = get_newstate(args)
+    clout(f"Searching device '{uuid}' to set to {newstate}")
+
+    found_devices = list()
+
+    def is_matching(dev_uuid):
+        """ if uuid is set, only that one matches, else all do
+        """
+        return uuid is None or dev_uuid.startswith(uuid)
+
+    def end_action():
+        coco.disconnect()
+
+    def set_action(dev):
+        def on_change():
+            clout(f"state changed.\n{dev}")
+            end_action()
+        dev.on_change = on_change
+        clout(f"setting device of class {type(dev).__name__} to {newstate}")
+        dev.request_state_change(newstate)
+
+    def all_done():
+        if len(found_devices) == 0:
+            clout("device not found - exiting", em=True)
+            end_action()
+        elif  len(found_devices) > 1:
+            clout("ambiguous request, multiple devices found - narrow down to correct uuid please:", em=True)
+            for dev in found_devices:
+                clout(f" * {dev.uuid} -> {dev.name}")
+            end_action()
+        else:
+            dev = found_devices[0]
+            clout(f"Found device to act upon. Stand-by for effect. Current state:\n{dev}", em=True)
+            set_action(dev)
+
+    def devices_found(all, cdc):
+        _LOGGER.debug(f"getting {len(all)} devices of type {cdc.value}")
+        for dev in all:
+            if is_matching(dev.uuid):
+                found_devices.append(dev)
+                _LOGGER.debug(f"found device: (type={cdc.value}, uuid={dev.uuid})")
+
+    dcm = DeviceClassMonitor(DEVICE_TYPENAMES, devices_found, all_done)
+    coco = CoCo(creds.host, creds.user, creds.pswd, creds.port)
+    dcm.process_devices(coco)
+
+    _LOGGER.info(f"TODO -- implement setting device {args.uuid} to {args.state}")
 
 
 async def do_shell(creds, args: Namespace):
@@ -402,7 +471,7 @@ def get_arg_parser():
 
     actap = saps.add_parser(
         'act',
-        aliases=action_alias_subs('set'),
+        aliases=action_alias_subs('act'),
         help='Set a particular device to on/off/toggle'
     )
     actap.add_argument(
@@ -417,7 +486,7 @@ def get_arg_parser():
         metavar="STATE",
         action="store",
         nargs=1,
-        help='ON | 0 | OFF | 1 | TOGGLE | x | LOW | MEDIUM | HIGH | BOOST | pp%',
+        help='ON | 0 | OFF | 1 | TOGGLE | x | LOW | MEDIUM | HIGH | BOOST | «percentage»% | «degrees»C',
     )
     actap.set_defaults(func=do_act)
 

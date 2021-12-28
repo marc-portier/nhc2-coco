@@ -6,14 +6,14 @@ This document tries to capture and explain what you can do with the provided CLI
 
 run `nhc2_coco --help` to retrieve:
 ```
-usage: nhc2_coco [-h] [-l <path to logconf file in yml format>] [-H HOST] [-p PORT] [-U USERNAME] [-P PASSWORD] action ...
+usage: nhc2_coco [-h] [-l LOGCONF_FILE.yml] [-H HOST] [-p PORT] [-U USERNAME] [-P PASSWORD] action ...
 
 CLI for nhc2_coco
 
 optional arguments:
   -h, --help            show this help message and exit
-  -l <path to logconf file in yml format>, --logconf <path to logconf file in yml format>
-                        where to move the logging to (default: None)
+  -l LOGCONF_FILE.yml, --logconf LOGCONF_FILE.yml
+                        The config file for the Logging in yml format (default: None)
   -H HOST, --host HOST  Specify host (name or ip) Niko-Home-Controller (default: None)
   -p PORT, --port PORT  Specify portnumber (default: None)
   -U USERNAME, --user USERNAME
@@ -23,10 +23,16 @@ optional arguments:
 
 actions to perform:
   action
-    discover (d, disc)  Discover all nhc2 systems on the network
-    connect (c, con)    Test the connection to the controller
-    list (l, ls)        List all elements found on the controller
-    watch (w, wat)      Watch and report all events on the controller
+    discover (d, di, dis, disc, disco, discov, discove)
+                        Discover all nhc2 systems on the network
+    connect (c, co, con, conn, conne, connec)
+                        Test the connection to the controller
+    info (i, in, inf)   Dump system info about the controller
+    list (l, li, lis, ls)
+                        List all elements found on the controller
+    watch (w, wa, wat, watc)
+                        Watch and report all events on the controller
+    act (a, ac)         Set a particular device to on/off/toggle
     shell (s, sh)       Open an interactive shell to communicate to the controller
 
 ```
@@ -84,9 +90,41 @@ $ nhc2_coco watch 300 -u 2ae61bad  # only watch devices with matching uuid and s
 
 ## Trigger an actual action on your nhc2 host
 
-todo
+The `act` action allows to
+* actually change the state of one of the devices on your nhc2 host
+* in the process it will show the state of the device before and after
 
+```bash
+$ nhc2_coco act 98334ef ON         # sets the state of device with uuid matching (the lead characters of) the device uuid to ON
+```
 
-## Open an interactive shell to interact with the elements on your nh2 host
+Depending on the type of object other values are supported:
 
-todo
+| value             | effect                           | limited to types  |
+|------------------:|----------------------------------|-------------------|
+| on, off           | obvious                          | devices with on/off state
+| toggle            | change on to off and vice versa  | (idem)
+| 25%               | set as percentage of brightness  | dimmable lights
+| low, medium, high, boost | set speed level of fan           | fans with controllable speed
+| 21C               | desired temperature in degrees C | thermostat
+
+## Open an interactive shell to interact with the elements on your nhc2 host
+
+:warning: Unimplemented. For now, nothing more then a distant wish.  
+Depends on some bright idea of what this should actually look like.
+As well as on a clear and pressing need over the current cli features.
+
+Maybe something like:
+```bash
+$ nhc2_coco sh
+nhc2(-)> showenv         # show environment from memory: host, port, user, passwd (masked)
+nhc2(-)> user «username» # set username to shell env in
+nhc2(-)> pswd «passwd»   # similar
+nhc2(-)> host «host»     # similar
+nhc2(-)> port «port»     # similar
+nhc2(-)> discover        # list available nhc2 hosts found on the connected networks
+
+nhc2(-)> connect         # make Connection (using settings in env)
+
+nhc2(host)>  ..          # more to come
+```

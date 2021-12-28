@@ -164,3 +164,8 @@ class CoCoThermostat(CoCoEntity):
             self._hvac_mode = status_value
             has_changed = True
         return has_changed
+
+    def request_state_change(self, newstate):
+        assert newstate[-1].upper() == 'C', "Thermostat state-change must be a temperature in degrees Celsius."
+        temp = int(newstate[:-1])
+        self.set_temperature(temp)

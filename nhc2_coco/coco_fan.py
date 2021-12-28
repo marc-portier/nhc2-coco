@@ -35,3 +35,9 @@ class CoCoFan(CoCoEntity):
         has_changed = self.update_dev(dev)
         if has_changed:
             self._state_changed()
+
+    def request_state_change(self, newstate):
+        if isinstance(newstate, str):
+            newstate = CoCoFanSpeed(newstate.capitalize())  # enum FanSpeed has capitalized values
+        assert isinstance(newstate, CoCoFanSpeed), "Fan state must be of (or convertible to) type CoCoFanSpeed"
+        self.change_speed(newstate)

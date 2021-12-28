@@ -54,6 +54,8 @@ class CoCoEntity(ABC):
         self._type = None
         self._command_device_control = command_device_control
         self._callback_mutex = threading.RLock()
+        # refactoring::suggestion print statements to be replaced with logging statements
+        #    that will allow the user of the lib to decide where messages go to
         self._on_change = (lambda: print('%s (%s) has no _on_change callback set!' % (self._name, self._uuid)))
         self._callback_container = (
             lambda: print('%s (%s) has no _callback_container callback set!' % (self._name, self._uuid)))
@@ -86,6 +88,15 @@ class CoCoEntity(ABC):
 
     @abstractmethod
     def _update(self, dev):
+        """ Update the representation of this instance based on the received update message.
+        And pass along notificatins through callbacks if needed.
+        """
+        pass
+
+    @abstractmethod
+    def request_state_change(self, newstate):
+        """ Act upon this device by trying to set its state to some new desired value
+        """
         pass
 
     def _state_changed(self):
