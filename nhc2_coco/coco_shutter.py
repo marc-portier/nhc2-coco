@@ -45,7 +45,7 @@ class CoCoShutter(CoCoEntity):
             self._state_changed()
 
     def request_state_change(self, newstate):
-        position = int(newstate)    
+        position = int(newstate)
         assert str(position) == newstate, "requested position should be a valid integer"  # roundtrip testing
         # refactoring::suggestion -- need to investigate what min max boundaries apply to valid shutter-positions
         self.set_position(position)
