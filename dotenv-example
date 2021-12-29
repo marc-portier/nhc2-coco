@@ -1,6 +1,7 @@
 #copy this file to .env and change its contents to reflect your local settings
 NHC2_HOST=<your hostname here>
-NHC2_PORT=8883
 NHC2_USER=
 NHC2_PASS=
+NHC2_SWITCHES_AS_LIGHTS=0
+NHC2_PORT=8883
 NHC2_LOGCONF=debug-logconf.yml

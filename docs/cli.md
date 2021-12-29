@@ -72,8 +72,9 @@ The `list` action allows to
 * together with some basic state information on each of them
 
 ```bash
-$ nhc2_coco list            # list all devices
-$ nhc2_coco ls -t lights    # list only the lights
+$ nhc2_coco list              # list all devices
+$ nhc2_coco ls -t lights      # list only the lights
+$ nhc2_coco l -n 'bath room'  # list only devices with names containing both 'bath' and 'room'
 ```
 
 ## Watch for events from elements on your nhc2 hosts
@@ -86,6 +87,7 @@ The `watch` action allows to
 $ nhc2_coco watch                  # watch all devices and keep doing that
 $ nhc2_coco watch 30  -t lights    # only watch devices of type 'lights' and stop after 30s
 $ nhc2_coco watch 300 -u 2ae61bad  # only watch devices with matching uuid and stop after 5' (=300")
+$ nhc2_coco watch 3 -n 'spots'     # only watch devices with matching name and stop after 3"
 ```
 
 ## Trigger an actual action on your nhc2 host
@@ -95,7 +97,8 @@ The `act` action allows to
 * in the process it will show the state of the device before and after
 
 ```bash
-$ nhc2_coco act 98334ef ON         # sets the state of device with uuid matching (the lead characters of) the device uuid to ON
+$ nhc2_coco act -u 98334ef ON             # sets the state of device with uuid matching (the lead characters of) the device uuid to ON
+$ nhc2_coco act -n 'bathroom light' ON    # sets the state of device with matching name to ON
 ```
 
 Depending on the type of object other values are supported:

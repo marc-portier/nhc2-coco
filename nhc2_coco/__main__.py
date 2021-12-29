@@ -1,6 +1,7 @@
 from dotenv import load_dotenv
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter, Namespace
 from collections import namedtuple
+from typing import Callable
 import os
 import sys
 import asyncio
@@ -36,17 +37,17 @@ def clout(*msg, em=False):
     print(msg)
 
 
-async def do_discover(creds, args: Namespace):
+async def do_discover(cocoargs, args: Namespace):
     """Performs NHC2_COCO Discovery
-    :param creds: Namedtuple holding the host:port and user:pass credentials
+    :param cocoargs: Namedtuple holding the host:port and user:pass credentials
     :param args: the parsed cli arguments
     """
-    if creds.host is None:
+    if cocoargs.host is None:
         clout('Searching for NiKo Home Control Controllers and profiles on them...')
     else:
-        clout('Listing Profiles on host [%s] use `--host @` to ignore the .env host and perform broadcast-discovery.' % creds.host)
+        clout('Listing Profiles on host [%s] use `--host @` to ignore the .env host and perform broadcast-discovery.' % cocoargs.host)
 
-    disc = CoCoDiscoverProfiles(creds.host)
+    disc = CoCoDiscoverProfiles(cocoargs.host)
     results = await disc.get_all_profiles()
 
     clout('Discovery completed. Listing discovered Profiles for %d controller(s).\n' % (len(results)))
@@ -62,21 +63,21 @@ async def do_discover(creds, args: Namespace):
             clout(f'  uuid: {uuid}\n  Name: {name}\n  Type: {type}')
 
 
-def assertConnectionSettings(creds):
-    assert creds.host is not None, "This action requires a host to connect to."
-    assert creds.port is not None and creds.port != 0, "This action requires a port to connect to."
-    assert creds.user is not None, "This action requires a user to connect to the nhc2 host."
-    assert creds.pswd is not None, "This action requires a password to connect to the nhc2 host."
+def assertConnectionSettings(cocoargs):
+    assert cocoargs.host is not None, "This action requires a host to connect to."
+    assert cocoargs.port is not None and cocoargs.port != 0, "This action requires a port to connect to."
+    assert cocoargs.user is not None, "This action requires a user to connect to the nhc2 host."
+    assert cocoargs.pswd is not None, "This action requires a password to connect to the nhc2 host."
 
 
-async def do_connect(creds, args):
-    assertConnectionSettings(creds)
-    clout(f"Testing connection to host '{creds.host}'")
+async def do_connect(cocoargs, args):
+    assertConnectionSettings(cocoargs)
+    clout(f"Testing connection to host '{cocoargs.host}'")
 
     response_texts = list(MQTT_RC_CODES)
     response_texts[0] = 'Connection successful'
 
-    clv = CoCoLoginValidation(creds.host, creds.user, creds.pswd, creds.port)
+    clv = CoCoLoginValidation(cocoargs.host, cocoargs.user, cocoargs.pswd, cocoargs.port)
     resp = await clv.check_connection()
     if resp < len(response_texts):
         clout(response_texts[resp], em=True)
@@ -84,11 +85,11 @@ async def do_connect(creds, args):
         clout(f"Connection FAILED (with unkown response code == {resp})", em=True)
 
 
-async def do_info(creds, args):
-    assertConnectionSettings(creds)
-    clout(f"Getting System-Info from host '{creds.host}'")
+async def do_info(cocoargs, args):
+    assertConnectionSettings(cocoargs)
+    clout(f"Getting System-Info from host '{cocoargs.host}'")
 
-    coco = CoCo(creds.host, creds.user, creds.pswd, creds.port)
+    coco = CoCo(*tuple(cocoargs))
 
     # on succes sys info will be available - so handle that
     def sysinfo_handler(info):
@@ -120,18 +121,46 @@ def get_selected_types(args):
     return type_names
 
 
+def isotime():
+    return datetime.datetime.now().replace(microsecond=0).isoformat()
+
+
+def make_on_change_for(dev, txt=None, cb=None):
+    def on_change():
+        nonlocal txt, cb
+        if txt is None:
+            txt = f"@{isotime()}a"
+        clout(f"{txt}=>{dev}")
+        if cb is not None and isinstance(cb, Callable):
+            cb()
+    return on_change
+
+
 class DeviceClassMonitor:
     """ A helper class to deal with all devices (per type) known to a nhc2 hosts
     """
 
-    def __init__(self, types: list, found_devices_cb, on_all_registered):
+    def __init__(self, types: list, on_matching_device, on_all_registered, uuid_filter=None, name_filter=None):
         """ Initialize a monitor for the listed type_names, calling back to on_all_registered when last was received.
         """
         self._known_types = types
         self._remaining_types = None
-        self._found_devices_cb = found_devices_cb
+        self._uuid_filter = uuid_filter
+        self._name_filter = name_filter
+        self._found_matching_device_cb = on_matching_device
         self._on_all_registered = on_all_registered
         self._reset_types()
+
+    def __str__(self):
+        return f"{type(self).__name__} types={self._known_types}, uuid_filter={self._uuid_filter}, name_filter='{self._name_filter}'"
+
+    def is_matching_device(self, dev):
+        match = True
+        match = match and (self._uuid_filter is None or dev.uuid.startswith(self._uuid_filter))
+        if self._name_filter is not None:
+            qryparts = set(self._name_filter.lower().split())
+            match = match and len(list(filter(lambda nm: nm in dev.name.lower(), qryparts))) == len(qryparts)  # all parts in the search should match
+        return match
 
     def _reset_types(self):
         self._remaining_types = list(self._known_types)
@@ -154,7 +183,10 @@ class DeviceClassMonitor:
         """
         def handler(all):
             try:
-                self._found_devices_cb(all, cdc)
+                _LOGGER.debug(f"getting {len(all)} devices of type {cdc.value}")
+                for dev in all:
+                    if self.is_matching_device(dev):
+                        self._found_matching_device_cb(dev, cdc)
             except Exception as e:
                 _LOGGER.exception(e)
             finally:
@@ -167,36 +199,36 @@ class DeviceClassMonitor:
         coco.connect()
         self._reset_types()
         for name in self._remaining_types:
-            _LOGGER.debug(f"DCM starting on {name}")
+            _LOGGER.debug(f"{self} starting on class {name}")
             cdc = CoCoDeviceClass(name)
             coco.get_devices(cdc, self._handle_factory(cdc))
 
 
-async def do_list(creds, args):
-    assertConnectionSettings(creds)
+async def do_list(cocoargs, args):
+    assertConnectionSettings(cocoargs)
     type_names = get_selected_types(args)
+    device_name = args.name
 
-    clout(f"Listing devices known to host '{creds.host}' of type: {type_names}")
+    clout(f"Listing devices known to host '{cocoargs.host}' of type: {type_names}")
 
     def all_done():
         coco.disconnect()
 
-    def devices_found(all, cdc):
-        clout(f"Found {len(all)} device(s) of type '{cdc.value}'", em=True)
-        for dev in all:
-            try:
-                clout(f"  {dev}")
-            except Exception as e:
-                clout(f"  *** ERR *** report-failure: {e}")
-                _LOGGER.exception(e)
+    last_cdc = None
+    def device_found(dev, cdc):
+        nonlocal last_cdc
+        if last_cdc != cdc:
+            clout(f"Device(s) of type '{cdc.value}'", em=True)
+            last_cdc = cdc
+        try:
+            clout(f"  {dev}")
+        except Exception as e:
+            clout(f"  *** ERR *** report-failure: {e}")
+            _LOGGER.exception(e)
 
-    dcm = DeviceClassMonitor(type_names, devices_found, all_done)
-    coco = CoCo(creds.host, creds.user, creds.pswd, creds.port)
+    dcm = DeviceClassMonitor(type_names, device_found, all_done, name_filter=device_name)
+    coco = CoCo(*tuple(cocoargs))
     dcm.process_devices(coco)
-
-
-def isotime():
-    return datetime.datetime.now().replace(microsecond=0).isoformat()
 
 
 def get_lapse(args: Namespace):
@@ -242,18 +274,14 @@ class EndWaitMonitor:
         return self._event.wait(timeout)
 
 
-async def do_watch(creds, args):
-    assertConnectionSettings(creds)
+async def do_watch(cocoargs, args):
+    assertConnectionSettings(cocoargs)
     type_names = get_selected_types(args)
     uuid = args.uuid
+    device_name = args.name
     lapse = get_lapse(args)
     monitoring = list()
-    clout(f"Watching devices known to host '{creds.host}' of type: {type_names} or matching uuid: {uuid}")
-
-    def is_matching(dev_uuid):
-        """ if uuid is set, only that one matches, else all do
-        """
-        return uuid is None or dev_uuid.startswith(uuid)
+    clout(f"Watching devices known to host '{cocoargs.host}' of type: {type_names} or matching uuid: {uuid}")
 
     def all_done():
         if len(monitoring) == 0:
@@ -262,21 +290,13 @@ async def do_watch(creds, args):
         else:
             clout(f"Actively monitoring {len(monitoring)} devices", em=True)
 
-    def make_device_monitor(dev):
-        def on_change():
-            clout(f"@{isotime()}=>{dev}")
-        return on_change
+    def device_found(dev, cdc):
+        dev.on_change = make_on_change_for(dev)
+        monitoring.append(dev)
+        _LOGGER.debug(f"monitoring device: (type={cdc.value}, uuid={dev.uuid})")
 
-    def devices_found(all, cdc):
-        _LOGGER.debug(f"getting {len(all)} devices of type {cdc.value}")
-        for dev in all:
-            if is_matching(dev.uuid):
-                dev.on_change = make_device_monitor(dev)
-                monitoring.append(dev)
-                _LOGGER.debug(f"monitoring device: (type={cdc.value}, uuid={dev.uuid})")
-
-    dcm = DeviceClassMonitor(type_names, devices_found, all_done)
-    coco = CoCo(creds.host, creds.user, creds.pswd, creds.port)
+    dcm = DeviceClassMonitor(type_names, device_found, all_done, uuid_filter = uuid, name_filter = device_name)
+    coco = CoCo(*tuple(cocoargs))
     dcm.process_devices(coco)
 
     ewm = EndWaitMonitor("quit")  # allow for quit-command interrupt over stdin
@@ -299,27 +319,20 @@ def get_newstate(args: Namespace):
     return newstate
 
 
-async def do_act(creds, args: Namespace):
-    assertConnectionSettings(creds)
-    uuid = args.uuid[0]
+async def do_act(cocoargs, args: Namespace):
+    assertConnectionSettings(cocoargs)
+    uuid = args.uuid
+    device_name = args.name
     newstate = get_newstate(args)
     clout(f"Searching device '{uuid}' to set to {newstate}")
 
     found_devices = list()
 
-    def is_matching(dev_uuid):
-        """ if uuid is set, only that one matches, else all do
-        """
-        return uuid is None or dev_uuid.startswith(uuid)
-
     def end_action():
         coco.disconnect()
 
     def set_action(dev):
-        def on_change():
-            clout(f"state changed.\n{dev}")
-            end_action()
-        dev.on_change = on_change
+        dev.on_change = make_on_change_for(dev, "state changed.\n", end_action)
         clout(f"setting device of class {type(dev).__name__} to {newstate}")
         dev.request_state_change(newstate)
 
@@ -327,7 +340,7 @@ async def do_act(creds, args: Namespace):
         if len(found_devices) == 0:
             clout("device not found - exiting", em=True)
             end_action()
-        elif  len(found_devices) > 1:
+        elif len(found_devices) > 1:
             clout("ambiguous request, multiple devices found - narrow down to correct uuid please:", em=True)
             for dev in found_devices:
                 clout(f" * {dev.uuid} -> {dev.name}")
@@ -337,21 +350,16 @@ async def do_act(creds, args: Namespace):
             clout(f"Found device to act upon. Stand-by for effect. Current state:\n{dev}", em=True)
             set_action(dev)
 
-    def devices_found(all, cdc):
-        _LOGGER.debug(f"getting {len(all)} devices of type {cdc.value}")
-        for dev in all:
-            if is_matching(dev.uuid):
-                found_devices.append(dev)
-                _LOGGER.debug(f"found device: (type={cdc.value}, uuid={dev.uuid})")
+    def device_found(dev, cdc):
+        found_devices.append(dev)
+        _LOGGER.debug(f"found device: (type={cdc.value}, uuid={dev.uuid})")
 
-    dcm = DeviceClassMonitor(DEVICE_TYPENAMES, devices_found, all_done)
-    coco = CoCo(creds.host, creds.user, creds.pswd, creds.port)
+    dcm = DeviceClassMonitor(DEVICE_TYPENAMES, device_found, all_done, uuid_filter = uuid, name_filter = device_name)
+    coco = CoCo(*tuple(cocoargs))
     dcm.process_devices(coco)
 
-    _LOGGER.info(f"TODO -- implement setting device {args.uuid} to {args.state}")
 
-
-async def do_shell(creds, args: Namespace):
+async def do_shell(cocoargs, args: Namespace):
     _LOGGER.info("TODO -- implement an interactive shell to capture commands and 'talk' to the controller")
     # need to consider some command syntax ? construct a language and use some parser-generator ? (e.g. https://www.dabeaz.com/ply/)
     # might be useful in a separate branch?
@@ -404,6 +412,12 @@ def get_arg_parser():
         action="store",
         help='password to authenticate',
     )
+    ap.add_argument(
+        '-S', '--switches_as_lights',
+        default=False,
+        action="store_true",
+        help='Let code handle switches as lights',
+    )
 
     saps = ap.add_subparsers(
         title='actions to perform',
@@ -440,6 +454,12 @@ def get_arg_parser():
         action="store",
         help='device type to list -- will list all if ommitted',
     )
+    listap.add_argument(
+        '-n', '--name',
+        metavar="NAME",
+        action="store",
+        help='limit devices to those having matching names',
+    )
     listap.set_defaults(func=do_list)
 
     watchap = saps.add_parser(
@@ -467,6 +487,12 @@ def get_arg_parser():
         action="store",
         help='single device uuid (matching prefix is enough) to watch',
     )
+    watchap.add_argument(
+        '-n', '--name',
+        metavar="NAME",
+        action="store",
+        help='limit devices to those having matching names',
+    )
     watchap.set_defaults(func=do_watch)
 
     actap = saps.add_parser(
@@ -475,11 +501,16 @@ def get_arg_parser():
         help='Set a particular device to on/off/toggle'
     )
     actap.add_argument(
-        'uuid',
+        '-u', '--uuid',
         metavar="UUID",
         action="store",
-        nargs=1,
-        help='single device uuid (matching prefix is enough) to set',
+        help='device uuid (matching prefix is enough) to set',
+    )
+    actap.add_argument(
+        '-n', '--name',
+        metavar="NAME",
+        action="store",
+        help='to match the name of the device to set',
     )
     actap.add_argument(
         'state',
@@ -499,17 +530,19 @@ def get_arg_parser():
     return ap
 
 
-def credentials(args: Namespace):
-    """Returns a simple structure holding the to be applied credentials merged from CLI args and .env
+def coco_init_args(args: Namespace):
+    """Returns a simple structure holding the to be applied CoCo(args) merged from CLI args and .env
     """
+    CocoInitArgs = namedtuple("CocoInitArgs", ["host", "user", "pswd", "port", "ca_path", "switches_as_lights" ])
     host = args.host if args.host else os.environ.get('NHC2_HOST', DEFAULT_HOST)
     # host == '@' is forcing to look around - use case override: .env setting with cli
     host = None if host == '@' else host
     port = int(args.port if args.port else os.environ.get('NHC2_PORT', DEFAULT_PORT))
     user = args.user if args.user else os.environ.get('NHC2_USER')
     pswd = args.pswd if args.pswd else os.environ.get('NHC2_PASS')
-    pwsc = pswd[:3] + ".." + pswd[-2:]
-    return namedtuple("Credentials", ["host", "port", "user", "pswd", "pwsc"])(host, port, user, pswd, pwsc)
+    sasl = args.switches_as_lights or bool(os.environ.get('NHC2_SWITCHES_AS_LIGHTS', 0))
+
+    return CocoInitArgs(host, user, pswd, port, None, sasl)
 
 
 def enable_logging(args: Namespace):
@@ -533,14 +566,14 @@ def main():
     ap = get_arg_parser()
     args = ap.parse_args()     # interprete cli args
     enable_logging(args)       # merge args and .env to enable logging
-    creds = credentials(args)  # merge args and .env to get credentials
-    _LOGGER.info(f"credentials => host={creds.host}, port={creds.port}, user={creds.user}, pswd={creds.pwsc}")
+    cocoargs = coco_init_args(args)  # merge args and .env to get credentials
+    _LOGGER.info(f"Using {cocoargs}")
 
     # setup async wait construct for main routines
     loop = asyncio.get_event_loop()
     try:
         # trigger the actual called action-function (async) and wait for it
-        loop.run_until_complete(args.func(creds, args))
+        loop.run_until_complete(args.func(cocoargs, args))
     except Exception as e:
         _LOGGER.exception(e)
         clout("***Error***", str(e))
