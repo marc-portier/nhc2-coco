@@ -21,6 +21,9 @@ loggers:
   __main__:
     level: DEBUG
     propagate: yes
+  tests:
+    level: DEBUG
+    propagate: yes
   nhc2_coco:
     level: DEBUG
     propagate: yes
