@@ -45,7 +45,7 @@ async def do_discover(cocoargs, args: Namespace):
     if cocoargs.host is None:
         clout('Searching for NiKo Home Control Controllers and profiles on them...')
     else:
-        clout('Listing Profiles on host [%s] use `--host @` to ignore the .env host and perform broadcast-discovery.' % cocoargs.host)
+        clout(f'Listing Profiles on host [{cocoargs.host}] use `-H @` to ignore the .env host and perform broadcast-discovery.')
 
     disc = CoCoDiscoverProfiles(cocoargs.host)
     results = await disc.get_all_profiles()
@@ -152,14 +152,16 @@ class DeviceClassMonitor:
         self._reset_types()
 
     def __str__(self):
-        return f"{type(self).__name__} types={self._known_types}, uuid_filter={self._uuid_filter}, name_filter='{self._name_filter}'"
+        return f"{type(self).__name__} types={self._known_types}, \
+               uuid_filter={self._uuid_filter}, name_filter='{self._name_filter}'"
 
     def is_matching_device(self, dev):
         match = True
         match = match and (self._uuid_filter is None or dev.uuid.startswith(self._uuid_filter))
         if self._name_filter is not None:
             qryparts = set(self._name_filter.lower().split())
-            match = match and len(list(filter(lambda nm: nm in dev.name.lower(), qryparts))) == len(qryparts)  # all parts in the search should match
+            # all parts in the search should match
+            match = match and len(list(filter(lambda nm: nm in dev.name.lower(), qryparts))) == len(qryparts)
         return match
 
     def _reset_types(self):
@@ -215,6 +217,7 @@ async def do_list(cocoargs, args):
         coco.disconnect()
 
     last_cdc = None
+
     def device_found(dev, cdc):
         nonlocal last_cdc
         if last_cdc != cdc:
@@ -295,7 +298,7 @@ async def do_watch(cocoargs, args):
         monitoring.append(dev)
         _LOGGER.debug(f"monitoring device: (type={cdc.value}, uuid={dev.uuid})")
 
-    dcm = DeviceClassMonitor(type_names, device_found, all_done, uuid_filter = uuid, name_filter = device_name)
+    dcm = DeviceClassMonitor(type_names, device_found, all_done, uuid_filter=uuid, name_filter=device_name)
     coco = CoCo(*tuple(cocoargs))
     dcm.process_devices(coco)
 
@@ -354,7 +357,7 @@ async def do_act(cocoargs, args: Namespace):
         found_devices.append(dev)
         _LOGGER.debug(f"found device: (type={cdc.value}, uuid={dev.uuid})")
 
-    dcm = DeviceClassMonitor(DEVICE_TYPENAMES, device_found, all_done, uuid_filter = uuid, name_filter = device_name)
+    dcm = DeviceClassMonitor(DEVICE_TYPENAMES, device_found, all_done, uuid_filter=uuid, name_filter=device_name)
     coco = CoCo(*tuple(cocoargs))
     dcm.process_devices(coco)
 
@@ -533,7 +536,7 @@ def get_arg_parser():
 def coco_init_args(args: Namespace):
     """Returns a simple structure holding the to be applied CoCo(args) merged from CLI args and .env
     """
-    CocoInitArgs = namedtuple("CocoInitArgs", ["host", "user", "pswd", "port", "ca_path", "switches_as_lights" ])
+    CocoInitArgs = namedtuple("CocoInitArgs", ["host", "user", "pswd", "port", "ca_path", "switches_as_lights"])
     host = args.host if args.host else os.environ.get('NHC2_HOST', DEFAULT_HOST)
     # host == '@' is forcing to look around - use case override: .env setting with cli
     host = None if host == '@' else host
